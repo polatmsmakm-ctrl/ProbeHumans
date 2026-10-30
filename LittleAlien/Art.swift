@@ -265,10 +265,11 @@ enum Art {
         let n = SKNode()
         let w: CGFloat = wide ? 150 : 96
         let h: CGFloat = CGFloat(lines.count) * 17 + 14
-        let board = SKSpriteNode(texture: Painter.signBoard(), size: CGSize(width: w, height: h + 34))
+        let total = h / 0.47 + 6
+        let board = SKSpriteNode(texture: Painter.signBoard(), size: CGSize(width: w, height: total))
         board.anchorPoint = CGPoint(x: 0.5, y: 0)
         n.addChild(board)
-        let top = h + 34 - (h + 34) * 0.06
+        let top = total * 0.93 - 4
         for (i, s) in lines.enumerated() {
             let l = SKLabelNode(fontNamed: "AvenirNext-HeavyItalic")
             l.text = s
