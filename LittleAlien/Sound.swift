@@ -1,7 +1,9 @@
 import AVFoundation
 import QuartzCore
 
-/// Plays the synthesized effects and the music loop.
+/// Plays sound effects and music.
+/// Files named u_* are the owner's own sounds (laser, animals, old man, theme);
+/// when one is missing the synthesized fallback is used instead.
 final class Sound {
     static let shared = Sound()
 
@@ -26,6 +28,16 @@ final class Sound {
     /// Old man voice lines made at build time (grumpa_1...); falls back to synthesized grumbles.
     private(set) var grumpaLines: [String] = []
 
+    /// Variants of each animal / human sound (owner's sounds first, synth as fallback).
+    private var sheepSounds: [String] = []
+    private var pigSounds: [String] = []
+    private var cowSounds: [String] = []
+    private var oldManSounds: [String] = []
+
+    // grabs that happen close together are counted and played as a group
+    private var pending: [String: Int] = [:]
+    private var flushScheduled = false
+
     private init() {
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
@@ -37,14 +49,33 @@ final class Sound {
             if load(n, copies: 1) { grumpaLines.append(n) }
         }
         if grumpaLines.isEmpty { grumpaLines = ["grumble_0", "grumble_1", "grumble_2"] }
+
+        load("u_laser_open", copies: 1)
+        load("u_laser_grab", copies: 4)
+        sheepSounds = loadSet("u_sheep", copies: 4, fallback: ["sheep_0", "sheep_1", "sheep_2"])
+        pigSounds = loadSet("u_pig", copies: 4, fallback: ["pig"])
+        cowSounds = loadSet("u_cow", copies: 4, fallback: ["cow"])
+        oldManSounds = loadSet("u_oldman", copies: 4, fallback: grumpaLines)
+    }
+
+    /// Loads u_name, u_name_0, u_name_1 ... and returns the names that exist.
+    private func loadSet(_ base: String, copies: Int, fallback: [String]) -> [String] {
+        var found: [String] = []
+        if load(base, copies: copies) { found.append(base) }
+        for i in 0..<8 where load("\(base)_\(i)", copies: copies) { found.append("\(base)_\(i)") }
+        return found.isEmpty ? fallback : found
     }
 
     @discardableResult
     private func load(_ name: String, copies: Int) -> Bool {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else { return false }
+        let url = Bundle.main.url(forResource: name, withExtension: "wav")
+            ?? Bundle.main.url(forResource: name, withExtension: "m4a")
+            ?? Bundle.main.url(forResource: name, withExtension: "mp3")
+        guard let u = url else { return false }
         var arr: [AVAudioPlayer] = []
         for _ in 0..<copies {
-            if let p = try? AVAudioPlayer(contentsOf: url) {
+            if let p = try? AVAudioPlayer(contentsOf: u) {
+                p.enableRate = true
                 p.prepareToPlay()
                 arr.append(p)
             }
@@ -54,6 +85,8 @@ final class Sound {
         next[name] = 0
         return true
     }
+
+    func has(_ name: String) -> Bool { return pools[name] != nil }
 
     /// minGap stops the same sound from stacking up too many times per second.
     func play(_ name: String, volume: Float = 1, rate: Float = 1, minGap: TimeInterval = 0.04) {
@@ -65,22 +98,92 @@ final class Sound {
         next[name] = (i + 1) % pool.count
         let p = pool[i]
         p.volume = volume
-        if rate != 1 { p.enableRate = true; p.rate = rate }
+        p.rate = rate
         p.currentTime = 0
         p.play()
     }
 
-    func sheep() { play("sheep_\(Int.random(in: 0..<3))", volume: 0.8, rate: Float.random(in: 0.9...1.15), minGap: 0.25) }
-    func grumpa() { if let n = grumpaLines.randomElement() { play(n, volume: 1, minGap: 0.8) } }
+    // MARK: Beam
+
+    /// Beam switching on (start of a run / after a head start).
+    func laserOpen() {
+        if has("u_laser_open") { play("u_laser_open", volume: 0.9) } else { play("ufo_in") }
+    }
+
+    /// Something got caught in the beam.
+    func laserGrab() {
+        if has("u_laser_grab") { play("u_laser_grab", volume: 0.55, rate: Float.random(in: 0.95...1.08), minGap: 0.12) } else { play("grab", volume: 0.5) }
+    }
+
+    // MARK: Animals & people, grouped by how many were grabbed
+
+    enum Voice: String { case sheep, pig, cow, oldMan, dog }
+
+    /// Queue one grabbed creature. Grabs within ~0.12s are played together:
+    /// one creature = one sound, a whole flock = several overlapping, varied sounds.
+    func creature(_ v: Voice) {
+        pending[v.rawValue, default: 0] += 1
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.flush() }
+    }
+
+    private func flush() {
+        flushScheduled = false
+        let groups = pending
+        pending = [:]
+        guard sfxOn else { return }
+        for (key, count) in groups {
+            guard let v = Voice(rawValue: key) else { continue }
+            let set: [String]
+            switch v {
+            case .sheep: set = sheepSounds
+            case .pig: set = pigSounds
+            case .cow: set = cowSounds
+            case .oldMan: set = oldManSounds
+            case .dog: set = ["dog"]
+            }
+            let voices = min(count, 4)
+            var order = set.shuffled()
+            for k in 0..<voices {
+                if order.isEmpty { order = set.shuffled() }
+                let name = order.removeFirst()
+                let delay = k == 0 ? 0 : Double(k) * Double.random(in: 0.09...0.18)
+                // each extra animal sounds a little different: pitch and loudness vary
+                let rate: Float = voices == 1 ? Float.random(in: 0.96...1.04) : Float.random(in: 0.82...1.22)
+                let vol: Float = max(0.45, 1 - Float(k) * 0.15)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.play(name, volume: vol, rate: rate, minGap: 0)
+                }
+            }
+        }
+    }
+
+    func sheep() { creature(.sheep) }
+    func grumpa() {
+        if oldManSounds.first?.hasPrefix("u_") == true {
+            play(oldManSounds.randomElement() ?? "", volume: 0.9, rate: Float.random(in: 0.95...1.05), minGap: 1.2)
+        } else if let n = grumpaLines.randomElement() {
+            play(n, volume: 1, minGap: 0.8)
+        }
+    }
+
+    // MARK: Music
 
     func playMusic(_ name: String) {
-        guard name != musicName else { return }
-        musicName = name
+        // the owner's theme (u_theme) replaces the gameplay loop when present
+        let file = (name == "music" && (Bundle.main.url(forResource: "u_theme", withExtension: "m4a") != nil
+                                        || Bundle.main.url(forResource: "u_theme", withExtension: "mp3") != nil)) ? "u_theme" : name
+        guard file != musicName else { return }
+        musicName = file
         music?.stop()
-        guard musicOn, let url = Bundle.main.url(forResource: name, withExtension: "wav"),
-              let p = try? AVAudioPlayer(contentsOf: url) else { return }
+        guard musicOn else { return }
+        let url = Bundle.main.url(forResource: file, withExtension: "wav")
+            ?? Bundle.main.url(forResource: file, withExtension: "m4a")
+            ?? Bundle.main.url(forResource: file, withExtension: "mp3")
+        guard let u = url, let p = try? AVAudioPlayer(contentsOf: u) else { return }
         p.numberOfLoops = -1
-        p.volume = 0.45
+        p.volume = file == "u_theme" ? 0.6 : 0.45
         p.play()
         music = p
     }

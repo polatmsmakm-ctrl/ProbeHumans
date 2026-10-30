@@ -1030,6 +1030,7 @@ final class GameScene: SKScene {
                 self.banner("HEAD START!")
             } else {
                 self.status = .play
+                self.sound.laserOpen()
                 if self.tutorial { self.banner("Drag anywhere to move the beam") }
             }
         }
@@ -1226,6 +1227,7 @@ final class GameScene: SKScene {
                 status = .play
                 beamOn = true
                 invincible = Tuning.boostInvuln
+                sound.laserOpen()
                 banner("GO!")
             }
         case .dead:
@@ -1845,13 +1847,13 @@ final class GameScene: SKScene {
             if beamActive && groundDist(c.gx, c.gd, toScreen: T) < 1 {
                 startLift(c)
                 if screen == .playing {
+                    sound.laserGrab()
                     switch c.kind {
-                    case .sheep: sound.sheep()
-                    case .cow: sound.play("cow", volume: 0.9, minGap: 0.4)
-                    case .pig: sound.play("pig", volume: 0.9, minGap: 0.3)
-                    case .dog: sound.play("dog", volume: 0.8, minGap: 0.3)
-                    case .grumpa: sound.grumpa()
-                    default: if Bool.random() { sound.grumpa() } else { sound.play("grab", volume: 0.5) }
+                    case .sheep: sound.creature(.sheep)
+                    case .cow: sound.creature(.cow)
+                    case .pig: sound.creature(.pig)
+                    case .dog: sound.creature(.dog)
+                    default: sound.creature(.oldMan)
                     }
                 }
             }
@@ -1976,6 +1978,7 @@ final class GameScene: SKScene {
         for p in pickups where !p.lifting {
             project(p)
             if beamActive && screen == .playing && groundDist(p.gx, p.gd, toScreen: T) < 1.2 {
+                sound.laserGrab()
                 startLift(p)
             }
         }
