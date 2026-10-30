@@ -12,6 +12,8 @@ final class Sound {
     private var music: AVAudioPlayer?
     private var musicName = ""
     private var lastPlay: [String: TimeInterval] = [:]
+    /// Starting players can block for a moment, so it happens off the game's main thread.
+    private let audioQ = DispatchQueue(label: "sound.play", qos: .userInitiated)
 
     var sfxOn: Bool {
         get { UserDefaults.standard.object(forKey: "sfxOn") as? Bool ?? true }
@@ -97,10 +99,12 @@ final class Sound {
         let i = next[name] ?? 0
         next[name] = (i + 1) % pool.count
         let p = pool[i]
-        p.volume = volume
-        p.rate = rate
-        p.currentTime = 0
-        p.play()
+        audioQ.async {
+            p.volume = volume
+            p.rate = rate
+            p.currentTime = 0
+            p.play()
+        }
     }
 
     // MARK: Beam

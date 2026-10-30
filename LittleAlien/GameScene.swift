@@ -280,7 +280,7 @@ final class GameScene: SKScene {
 
     private func setUFOArt() {
         ufoArt.removeFromParent()
-        ufoArt = Art.ufo(store.d.selectedUFO)
+        ufoArt = Art.ufo(theme: store.currentTheme)
         ufoScale = min(W * 0.23, H * 0.5) / 220
         ufoArt.setScale(ufoScale)
         ufo.addChild(ufoArt)
@@ -482,6 +482,8 @@ final class GameScene: SKScene {
     }
 
     private func rebuildHealthBars() {
+        shownHealth = -1
+        ringFrac = -1
         for b in healthBars { b.removeFromParent() }
         healthBars = []
         let top = H / 2
@@ -498,6 +500,7 @@ final class GameScene: SKScene {
     }
 
     private func setText(_ l: SKLabelNode, _ s: String) {
+        if l.text == s { return }
         l.text = s
         (l.children.first as? SKLabelNode)?.text = s
     }
@@ -508,6 +511,9 @@ final class GameScene: SKScene {
         setText(coinLabel, "\(runCoins)")
         setText(distLabel, "\(UIK.coins(distance)) M")
 
+        if health != shownHealth || maxHealth != shownMax {
+        shownHealth = health
+        shownMax = maxHealth
         for (i, b) in healthBars.enumerated() {
             if i >= maxHealth { b.isHidden = true; continue }
             b.isHidden = false
@@ -516,9 +522,11 @@ final class GameScene: SKScene {
             b.strokeColor = full ? Art.rgb(0.8, 0.95, 1, 0.9) : Art.rgb(0.25, 0.4, 0.6, 0.8)
             b.glowWidth = full ? 1.5 : 0
         }
+        }
         if let heart = hud.childNode(withName: "heart") as? SKLabelNode {
             heart.fontColor = (health <= 1 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : .white
-            heart.text = secondChance ? "♥" : "♡"
+            let ht = secondChance ? "♥" : "♡"
+            if heart.text != ht { heart.text = ht }
         }
 
         let hasNext = level + 1 < Tuning.streakCounts.count
@@ -527,10 +535,14 @@ final class GameScene: SKScene {
         let frac = hasNext ? CGFloat(collectedStreak - lo) / CGFloat(max(1, hi - lo)) : 1
         let hs = min(1.25, max(0.85, H / 390))
         let r: CGFloat = 25 * hs
-        let p = CGMutablePath()
-        let start = CGFloat.pi / 2
-        p.addArc(center: .zero, radius: r, startAngle: start, endAngle: start - max(0.01, min(1, frac)) * .pi * 2, clockwise: true)
-        ringFill.path = p
+        let q = (frac * 200).rounded() / 200
+        if q != ringFrac {
+            ringFrac = q
+            let p = CGMutablePath()
+            let start = CGFloat.pi / 2
+            p.addArc(center: .zero, radius: r, startAngle: start, endAngle: start - max(0.01, min(1, q)) * .pi * 2, clockwise: true)
+            ringFill.path = p
+        }
         ringFill.strokeColor = (level > 0 && sinceCollect > Tuning.streakWindow - 2 && Int(clock * 6) % 2 == 0) ? UIK.red : Art.rgb(0.4, 0.8, 1)
 
         // slider thumb follows the beam depth
@@ -618,7 +630,7 @@ final class GameScene: SKScene {
         let lx = -W / 2 + 110 * s
         let items: [(String, () -> Void)] = [
             ("STORE", { [weak self] in self?.showStore(.powers) }),
-            ("UFOS", { [weak self] in self?.showStore(.ufo) }),
+            ("THEMES", { [weak self] in self?.showStore(.ufo) }),
             ("OPTIONS", { [weak self] in self?.showSettings() })
         ]
         for (i, it) in items.enumerated() {
@@ -672,7 +684,7 @@ final class GameScene: SKScene {
         overlay.addChild(UIK.label("STORE", size: 22, color: UIK.cyan, y: H / 2 - 40))
         addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showMenu() }
 
-        let tabs: [(String, StoreTab)] = [("UFO", .ufo), ("POWER-UPS", .powers), ("ITEMS", .items), ("ANIMALS", .animals)]
+        let tabs: [(String, StoreTab)] = [("THEMES", .ufo), ("POWER-UPS", .powers), ("ITEMS", .items), ("ANIMALS", .animals)]
         let tw = (pw - 60) / 4
         for (i, t) in tabs.enumerated() {
             let x = -pw / 2 + 30 + tw * (CGFloat(i) + 0.5)
@@ -754,31 +766,33 @@ final class GameScene: SKScene {
         let coins = store.d.coins
         switch tab {
         case .ufo:
-            return (0..<5).map { (i: Int) -> Card in
-                let icon = Art.ufo(i)
+            return UFOTheme.all.map { (t: UFOTheme) -> Card in
+                let icon = Art.ufo(theme: t)
                 icon.setScale(0.55)
-                let owned = store.d.ufoOwned[i]
-                let tier = store.d.ufoTier[i]
-                if !owned {
-                    let cost = Tuning.ufoBuyCost[i]
-                    return Card(title: Art.ufoNames[i].uppercased(), icon: icon, desc: "A new saucer and alien", price: cost, buttonText: nil,
-                                enabled: coins >= cost, status: nil,
+                if !store.ownsTheme(t.id) {
+                    return Card(title: t.name.uppercased(), icon: icon, desc: "New saucer look and beam colour", price: t.price, buttonText: nil,
+                                enabled: coins >= t.price, status: nil,
                                 action: { [weak self] in
                                     guard let self = self else { return }
-                                    self.buy(cost) { self.store.d.ufoOwned[i] = true; self.store.d.selectedUFO = i }
+                                    self.buy(t.price) {
+                                        var owned = self.store.d.themesOwned ?? []
+                                        owned.append(t.id)
+                                        self.store.d.themesOwned = owned
+                                        self.store.d.theme = t.id
+                                    }
                                     self.setUFOArt()
                                     self.showStore(.ufo, page: self.storePage)
                                 })
                 }
-                if store.d.selectedUFO == i {
-                    return Card(title: Art.ufoNames[i].uppercased(), icon: icon, desc: "Health bars: \(Tuning.ufoHealth[tier])", price: nil, buttonText: nil,
+                if store.currentTheme.id == t.id {
+                    return Card(title: t.name.uppercased(), icon: icon, desc: "Your saucer", price: nil, buttonText: nil,
                                 enabled: true, status: "SELECTED", action: nil)
                 }
-                return Card(title: Art.ufoNames[i].uppercased(), icon: icon, desc: "Health bars: \(Tuning.ufoHealth[tier])", price: nil, buttonText: "SELECT",
+                return Card(title: t.name.uppercased(), icon: icon, desc: "Owned", price: nil, buttonText: "USE",
                             enabled: true, status: nil,
                             action: { [weak self] in
                                 guard let self = self else { return }
-                                self.store.d.selectedUFO = i
+                                self.store.d.theme = t.id
                                 self.store.save()
                                 self.setUFOArt()
                                 self.showStore(.ufo, page: self.storePage)
@@ -788,7 +802,7 @@ final class GameScene: SKScene {
             var cards: [Card] = []
             let sel = store.d.selectedUFO
             let tier = store.d.ufoTier[sel]
-            let upIcon = Art.ufo(sel)
+            let upIcon = Art.ufo(theme: store.currentTheme)
             upIcon.setScale(0.5)
             let upDesc = ["Add an extra health bar", "Score multiplier +1", "Keep power-ups when hit", "Fully upgraded"][tier]
             if tier < 3 {
@@ -1019,7 +1033,6 @@ final class GameScene: SKScene {
         beamOn = false
         ufoPos = CGPoint(x: -80 * ws, y: H + 60)
         ufo.position = ufoPos
-        sound.play("ufo_in")
         ufo.run(.wait(forDuration: 0.9)) { [weak self] in
             guard let self = self, self.screen == .playing || self.screen == .paused else { return }
             self.beamOn = true
@@ -1330,7 +1343,8 @@ final class GameScene: SKScene {
         } else if power == .magnet {
             base = Art.rgb(0.4, 0.75, 1)
         } else {
-            base = Painter.neon[store.d.selectedUFO].darker(1.05)
+            let th = store.currentTheme
+            base = th.extra == .rainbow ? UIColor(hue: (clock * 0.15).truncatingRemainder(dividingBy: 1), saturation: 0.75, brightness: 1, alpha: 1) : th.neon.darker(1.05)
         }
         let dx = T.x - U.x, dy = T.y - U.y
         let len = max(4, hypot(dx, dy))
@@ -1683,6 +1697,9 @@ final class GameScene: SKScene {
         c.gx = x
         c.gd = max(dMin + 0.02, min(dMax - 0.05, d))
         c.vx = Bool.random() ? c.walkSpeed : -c.walkSpeed
+        c.legsNode = c.body.childNode(withName: ".//legs")
+        c.forkNode = c.body.childNode(withName: ".//fork")
+        c.flashNode = c.body.childNode(withName: ".//flash")
         world.addChild(c)
         creatures.append(c)
         return c
@@ -1718,7 +1735,7 @@ final class GameScene: SKScene {
             let hw: CGFloat = 0.11
             upper.append(CGPoint(x: sx(x, rd + hw), y: sy(rd + hw)))
             lower.append(CGPoint(x: sx(x, rd - hw), y: sy(rd - hw)))
-            x += 30
+            x += 45
         }
         let p = CGMutablePath()
         if let f = upper.first {
@@ -1826,14 +1843,14 @@ final class GameScene: SKScene {
 
             // walk cycle
             let bob = moving ? abs(sin(clock * 14 + c.wob)) : 0
-            if let legs = c.body.childNode(withName: ".//legs") { legs.position.y = bob * 1.6 }
+            c.legsNode?.position.y = bob * 1.6
             c.body.position.y = c.kind == .dog ? bob * 4 : bob * 1.2
-            if c.kind == .grumpa, let fork = c.body.childNode(withName: ".//fork") {
+            if c.kind == .grumpa, let fork = c.forkNode {
                 fork.zRotation = sin(clock * (moving ? 10 : 3) + c.wob) * 0.25
             }
             if c.kind == .reporter {
                 c.flashTimer -= dt
-                if c.flashTimer <= 0, let fl = c.body.childNode(withName: ".//flash") {
+                if c.flashTimer <= 0, let fl = c.flashNode {
                     c.flashTimer = CGFloat.random(in: 1.5...3.5)
                     let glow = Art.circ(7, UIColor(white: 1, alpha: 0.95))
                     glow.position = fl.position
@@ -1892,7 +1909,7 @@ final class GameScene: SKScene {
                                  y: T.y + (U.y - T.y) * e + n.liftOffset.y * (1 - t) + sin(t * .pi) * 6 * ws)
             n.setScale(n.liftScale * (1 - 0.55 * t))
             if n is Creature { n.zRotation += (2 + abs(n.spin) * 3) * dt * (n.spin >= 0 ? 1 : -1) }
-            if let c = n as? Creature, let legs = c.body.childNode(withName: ".//legs") {
+            if let c = n as? Creature, let legs = c.legsNode {
                 legs.position.y = abs(sin(clock * 24 + c.wob)) * 2.5   // kicking legs
             }
             if t >= 1 { done.append(n) }
@@ -1910,9 +1927,9 @@ final class GameScene: SKScene {
             score += pts
             abducted += 1
             bumpStreak()
-            popup("+\(pts)", at: CGPoint(x: U.x + 18 * ws, y: U.y - 6 * ws), color: UIK.cyan)
-            sound.play("collect", volume: 0.6)
-            hapticLight.impactOccurred()
+            scorePopup(pts, at: CGPoint(x: U.x + 18 * ws, y: U.y - 6 * ws))
+            sound.play("collect", volume: 0.6, minGap: 0.08)
+            if clock - lastHaptic > 0.08 { lastHaptic = clock; hapticLight.impactOccurred() }
         } else if let c = n as? Coin {
             coins.removeAll { $0 === c }
             guard screen == .playing else { return }
@@ -2167,7 +2184,7 @@ final class GameScene: SKScene {
     private func takeDamage(_ amount: Int, byVehicle: Bool) {
         guard status == .play || status == .boost else { return }
         if invincible > 0 || damageTimer > 0 { return }
-        health -= max(1, amount)
+        health -= 1   // any hit costs exactly one bar
         if tutorialActive { health = max(1, health) }
         damageTimer = Tuning.damageTime
         hapticHeavy.impactOccurred()
@@ -2293,6 +2310,38 @@ final class GameScene: SKScene {
     }
 
     // MARK: - Popups
+
+    private var lastHaptic: CGFloat = 0
+    private var ringFrac: CGFloat = -1
+    private var shownHealth = -1
+    private var shownMax = -1
+    private var comboLabel: SKLabelNode?
+    private var comboValue = 0
+    private var comboTime: CGFloat = -10
+
+    /// Points from creatures arriving close together are added into one "+N" label
+    /// instead of making a new label for each sheep (that caused stutters with big flocks).
+    private func scorePopup(_ pts: Int, at p: CGPoint) {
+        if let l = comboLabel, l.parent != nil, clock - comboTime < 0.35 {
+            comboValue += pts
+            comboTime = clock
+            setText(l, "+\(comboValue)")
+            l.removeAllActions()
+            l.alpha = 1
+            l.setScale(1.15)
+            l.run(.sequence([.scale(to: 1, duration: 0.1),
+                             .group([.moveBy(x: 10, y: 34 * ws, duration: 0.7), .sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.35)])]),
+                             .removeFromParent()]))
+            return
+        }
+        comboValue = pts
+        comboTime = clock
+        let l = UIK.label("+\(pts)", size: 18 * ws, color: UIK.cyan, font: UIK.heavyItalic, x: p.x, y: p.y, shadow: Art.rgb(0.05, 0.1, 0.25, 0.8))
+        l.zPosition = 800
+        addChild(l)
+        comboLabel = l
+        l.run(.sequence([.group([.moveBy(x: 10, y: 34 * ws, duration: 0.7), .sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.35)])]), .removeFromParent()]))
+    }
 
     private func popup(_ text: String, at p: CGPoint, color: UIColor) {
         let l = UIK.label(text, size: 18 * ws, color: color, font: UIK.heavyItalic, x: p.x, y: p.y, shadow: Art.rgb(0.05, 0.1, 0.25, 0.8))

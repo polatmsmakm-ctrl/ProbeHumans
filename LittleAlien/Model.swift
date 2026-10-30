@@ -47,11 +47,11 @@ enum Tuning {
     static let unit: CGFloat = 10
 
     // Speed (meters per second)
-    static let startSpeed: CGFloat = 12
+    static let startSpeed: CGFloat = 14
     static let speedGain: CGFloat = 0.083
     static let maxSpeed: CGFloat = 20
     /// Extra speed earned from score: start + max * (1 - e^(-score/scale)).
-    static let scoreSpeedMax: CGFloat = 18
+    static let scoreSpeedMax: CGFloat = 19
     static let scoreSpeedScale: CGFloat = 3000
     static let boostSpeed: CGFloat = 34
     static let boostDistance: CGFloat = 300
@@ -250,6 +250,10 @@ final class Creature: GroundThing {
     var wob: CGFloat = CGFloat.random(in: 0..<6.28)
     var flashTimer: CGFloat = CGFloat.random(in: 1...4)
     var spoke = false
+    // cached child nodes (looking them up every frame was slow with big flocks)
+    var legsNode: SKNode?
+    var forkNode: SKNode?
+    var flashNode: SKNode?
 
     init(kind: Kind, variant: Int, body: SKNode) {
         self.kind = kind
@@ -336,6 +340,8 @@ struct SaveData: Codable {
     var totalAbducted = 0
     var runs = 0
     var unlocked: [String]? = nil
+    var themesOwned: [String]? = nil
+    var theme: String? = nil
 }
 
 final class Store {
@@ -371,7 +377,67 @@ final class Store {
     }
 
     var currentTier: Int { return d.ufoTier[d.selectedUFO] }
+    var currentTheme: UFOTheme { return UFOTheme.find(d.theme ?? "classic") }
+    func ownsTheme(_ id: String) -> Bool { return id == "classic" || (d.themesOwned ?? []).contains(id) }
     var maxHealth: Int { return Tuning.ufoHealth[currentTier] }
     var upgradedMultiplier: Bool { return currentTier >= 2 }
     var keepsPowerups: Bool { return currentTier >= 3 }
+}
+
+
+// MARK: - Saucer themes (bought in the store with coins)
+
+struct UFOTheme {
+    enum Extra { case none, cyberGrid, hazard, candy, icicles, flames, spikes, gold, pumpkin, rainbow }
+
+    let id: String
+    let name: String
+    let price: Int
+    let hullTop: UIColor
+    let hullMid: UIColor
+    let hullBottom: UIColor
+    let deck: UIColor
+    let neon: UIColor
+    let alien: UIColor
+    let glass: UIColor
+    let extra: Extra
+
+    static func c(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> UIColor { return UIColor(red: r, green: g, blue: b, alpha: 1) }
+
+    /// Prices are set around what a run earns (roughly 50–150 coins), so the first themes
+    /// come after a few runs and the best ones are long-term goals.
+    static let all: [UFOTheme] = [
+        UFOTheme(id: "classic", name: "Night Purple", price: 0,
+                 hullTop: c(0.5, 0.53, 0.68), hullMid: c(0.22, 0.24, 0.35), hullBottom: c(0.06, 0.07, 0.12),
+                 deck: c(0.62, 0.65, 0.8), neon: c(0.72, 0.42, 1), alien: c(0.55, 0.5, 0.72), glass: c(0.75, 0.85, 1), extra: .none),
+        UFOTheme(id: "cyber", name: "Cyber Cyan", price: 250,
+                 hullTop: c(0.35, 0.45, 0.55), hullMid: c(0.1, 0.16, 0.24), hullBottom: c(0.03, 0.05, 0.09),
+                 deck: c(0.4, 0.55, 0.65), neon: c(0.2, 0.95, 1), alien: c(0.6, 0.75, 0.8), glass: c(0.6, 1, 1), extra: .cyberGrid),
+        UFOTheme(id: "toxic", name: "Toxic", price: 400,
+                 hullTop: c(0.45, 0.5, 0.35), hullMid: c(0.2, 0.24, 0.14), hullBottom: c(0.06, 0.08, 0.04),
+                 deck: c(0.55, 0.6, 0.42), neon: c(0.5, 1, 0.2), alien: c(0.45, 0.8, 0.35), glass: c(0.7, 1, 0.6), extra: .hazard),
+        UFOTheme(id: "candy", name: "Candy Pop", price: 650,
+                 hullTop: c(1, 0.75, 0.88), hullMid: c(0.92, 0.45, 0.68), hullBottom: c(0.5, 0.15, 0.35),
+                 deck: c(1, 0.85, 0.93), neon: c(1, 0.45, 0.8), alien: c(0.6, 0.85, 1), glass: c(1, 0.85, 0.95), extra: .candy),
+        UFOTheme(id: "ice", name: "Frost", price: 900,
+                 hullTop: c(0.92, 0.97, 1), hullMid: c(0.6, 0.75, 0.88), hullBottom: c(0.25, 0.35, 0.5),
+                 deck: c(0.95, 0.98, 1), neon: c(0.55, 0.85, 1), alien: c(0.7, 0.8, 0.95), glass: c(0.85, 0.95, 1), extra: .icicles),
+        UFOTheme(id: "inferno", name: "Inferno", price: 1300,
+                 hullTop: c(0.6, 0.25, 0.15), hullMid: c(0.3, 0.08, 0.05), hullBottom: c(0.1, 0.02, 0.02),
+                 deck: c(0.7, 0.35, 0.2), neon: c(1, 0.5, 0.1), alien: c(0.95, 0.6, 0.4), glass: c(1, 0.75, 0.5), extra: .flames),
+        UFOTheme(id: "midnight", name: "Midnight Fang", price: 1800,
+                 hullTop: c(0.25, 0.25, 0.3), hullMid: c(0.08, 0.08, 0.1), hullBottom: c(0.01, 0.01, 0.02),
+                 deck: c(0.3, 0.3, 0.36), neon: c(1, 0.15, 0.25), alien: c(0.5, 0.5, 0.55), glass: c(1, 0.6, 0.65), extra: .spikes),
+        UFOTheme(id: "gold", name: "Golden King", price: 2600,
+                 hullTop: c(1, 0.9, 0.55), hullMid: c(0.85, 0.62, 0.15), hullBottom: c(0.4, 0.25, 0.03),
+                 deck: c(1, 0.92, 0.65), neon: c(1, 0.85, 0.3), alien: c(0.55, 0.85, 0.5), glass: c(1, 0.95, 0.75), extra: .gold),
+        UFOTheme(id: "pumpkin", name: "Pumpkin King", price: 3500,
+                 hullTop: c(1, 0.6, 0.15), hullMid: c(0.88, 0.38, 0.05), hullBottom: c(0.4, 0.14, 0.02),
+                 deck: c(1, 0.7, 0.3), neon: c(1, 0.75, 0.1), alien: c(0.4, 0.75, 0.3), glass: c(1, 0.85, 0.5), extra: .pumpkin),
+        UFOTheme(id: "rainbow", name: "Rainbow Rider", price: 5000,
+                 hullTop: c(0.85, 0.85, 0.95), hullMid: c(0.45, 0.45, 0.6), hullBottom: c(0.12, 0.12, 0.2),
+                 deck: c(0.9, 0.9, 1), neon: c(1, 0.3, 0.6), alien: c(0.95, 0.8, 0.4), glass: c(0.95, 0.9, 1), extra: .rainbow),
+    ]
+
+    static func find(_ id: String) -> UFOTheme { return all.first { $0.id == id } ?? all[0] }
 }

@@ -59,9 +59,16 @@ enum Art {
     static let dark = rgb(0.12, 0.12, 0.16)
     static let outline = rgb(0.1, 0.08, 0.15, 0.9)
 
-    static func shadow(_ w: CGFloat) -> SKShapeNode {
-        let s = ell(w, w * 0.32, UIColor(white: 0, alpha: 0.35))
+    static func shadow(_ w: CGFloat) -> SKSpriteNode {
+        let s = SKSpriteNode(texture: Painter.shadowTex(), size: CGSize(width: w * 1.15, height: w * 0.4))
         s.zPosition = -1
+        return s
+    }
+
+    /// Plain coloured block as a sprite (batches far better than shape nodes).
+    static func block(_ w: CGFloat, _ h: CGFloat, _ c: UIColor, _ x: CGFloat = 0, _ y: CGFloat = 0) -> SKSpriteNode {
+        let s = SKSpriteNode(color: c, size: CGSize(width: w, height: h))
+        s.position = CGPoint(x: x, y: y)
         return s
     }
 
@@ -70,14 +77,18 @@ enum Art {
     static let ufoNames = ["Casey", "Nick", "Marc", "Andres", "Tania"]
 
     static func ufo(_ index: Int) -> SKNode {
+        return ufo(theme: UFOTheme.all[max(0, min(UFOTheme.all.count - 1, index))])
+    }
+
+    static func ufo(theme: UFOTheme) -> SKNode {
         let n = SKNode()
-        let s = Painter.sprite(Painter.ufo(index), canvas: Painter.ufoCanvas, foot: Painter.ufoFoot)
+        let s = Painter.sprite(Painter.ufo(theme: theme), canvas: Painter.ufoCanvas, foot: Painter.ufoFoot)
         n.addChild(s)
         // pulsing emitter light
         let glow = SKSpriteNode(texture: Painter.landing())
         glow.size = CGSize(width: 90, height: 24)
         glow.position = CGPoint(x: 0, y: -25)
-        glow.color = Painter.neon[max(0, min(4, index))]
+        glow.color = theme.neon
         glow.colorBlendFactor = 1
         glow.blendMode = .add
         glow.alpha = 0.7
@@ -94,8 +105,8 @@ enum Art {
         let l = SKNode()
         l.name = "legs"
         for x in xs {
-            l.addChild(rect(w, h, color, x, h / 2, r: w / 2))
-            if let hf = hoof { l.addChild(rect(w + 0.6, 2.4, hf, x, 1.2, r: 1)) }
+            l.addChild(block(w, h, color, x, h / 2))
+            if let hf = hoof { l.addChild(block(w + 0.6, 2.4, hf, x, 1.2)) }
         }
         return l
     }
@@ -138,8 +149,8 @@ enum Art {
             let lg = SKNode()
             lg.name = "legs"
             for x in [-3, 3] as [CGFloat] {
-                lg.addChild(rect(4.6, 14, o.pants.darker(0.85), x, 7, r: 2))
-                lg.addChild(rect(6, 3, rgb(0.15, 0.1, 0.08), x + 1, 1.5, r: 1.2))
+                lg.addChild(block(4.6, 14, o.pants.darker(0.85), x, 7))
+                lg.addChild(block(6, 3, rgb(0.15, 0.1, 0.08), x + 1, 1.5))
             }
             n.addChild(lg)
             n.addChild(Painter.sprite(Painter.person("\(kind)", o), canvas: CGSize(width: 48, height: 64), foot: CGPoint(x: 24, y: 2)))
@@ -147,9 +158,9 @@ enum Art {
                 let fork = SKNode()
                 fork.name = "fork"
                 fork.position = CGPoint(x: 9, y: 16)
-                fork.addChild(rect(1.8, 40, rgb(0.5, 0.35, 0.2), 0, 14))
-                fork.addChild(rect(10, 1.8, UIColor(white: 0.7, alpha: 1), 0, 34))
-                for dx in [-4.5, 0, 4.5] as [CGFloat] { fork.addChild(rect(1.4, 8, UIColor(white: 0.75, alpha: 1), dx, 38)) }
+                fork.addChild(block(1.8, 40, rgb(0.5, 0.35, 0.2), 0, 14))
+                fork.addChild(block(10, 1.8, UIColor(white: 0.7, alpha: 1), 0, 34))
+                for dx in [-4.5, 0, 4.5] as [CGFloat] { fork.addChild(block(1.4, 8, UIColor(white: 0.75, alpha: 1), dx, 38)) }
                 n.addChild(fork)
             }
             if kind == .reporter {

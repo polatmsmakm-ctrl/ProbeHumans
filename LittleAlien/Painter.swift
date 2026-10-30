@@ -172,6 +172,156 @@ enum Painter {
         }
     }
 
+    static func ufo(theme t: UFOTheme) -> SKTexture {
+        let n = t.neon
+        return texture("ufoT_" + t.id, ufoCanvas) { ctx, _ in
+            radial(ctx, ell(110, 28, 120, 40), [n.withAlphaComponent(0.85), n.withAlphaComponent(0)], CGPoint(x: 110, y: 28), 60)
+            linear(ctx, ell(110, 40, 128, 38), [t.hullMid.darker(1.1), t.hullBottom], CGPoint(x: 0, y: 59), CGPoint(x: 0, y: 21))
+            if t.extra == .icicles {
+                for k in 0..<9 {
+                    let x = 62 + CGFloat(k) * 12
+                    let h = CGFloat(8 + (k * 5) % 9)
+                    linear(ctx, poly([CGPoint(x: x - 3, y: 40), CGPoint(x: x + 3, y: 40), CGPoint(x: x, y: 40 - h)]),
+                           [c(0.85, 0.95, 1, 0.95), c(0.6, 0.85, 1, 0.6)], CGPoint(x: 0, y: 40), CGPoint(x: 0, y: 40 - h))
+                }
+            }
+            glow(ctx, n, 10) { fill(ctx, ell(110, 27, 64, 13), n) }
+            fill(ctx, ell(110, 27.5, 40, 7), c(1, 0.97, 1, 0.95))
+            if t.extra == .flames {
+                for k in 0..<7 {
+                    let x = 30 + CGFloat(k) * 26
+                    let h = CGFloat(16 + (k * 7) % 12)
+                    let fl = CGMutablePath()
+                    fl.move(to: CGPoint(x: x - 9, y: 50))
+                    fl.addQuadCurve(to: CGPoint(x: x - 2, y: 50 - h), control: CGPoint(x: x - 12, y: 50 - h * 0.6))
+                    fl.addQuadCurve(to: CGPoint(x: x + 9, y: 50), control: CGPoint(x: x + 8, y: 50 - h * 0.5))
+                    fl.closeSubpath()
+                    glow(ctx, c(1, 0.5, 0.1), 8) {
+                        linear(ctx, fl, [c(1, 0.95, 0.4), c(1, 0.45, 0.05), c(0.8, 0.1, 0.02, 0.6)], CGPoint(x: 0, y: 50), CGPoint(x: 0, y: 50 - h))
+                    }
+                }
+            }
+            let disc = ell(110, 56, 212, 42)
+            linear(ctx, disc, [t.hullTop, t.hullMid, t.hullBottom], CGPoint(x: 0, y: 77), CGPoint(x: 0, y: 35), [0, 0.45, 1])
+            stroke(ctx, disc, c(1, 1, 1, 0.2), 1)
+            ctx.saveGState()
+            ctx.addPath(disc)
+            ctx.clip()
+            switch t.extra {
+            case .candy:
+                for k in 0..<12 {
+                    let x = CGFloat(k) * 22 - 10
+                    fill(ctx, poly([CGPoint(x: x, y: 35), CGPoint(x: x + 9, y: 35), CGPoint(x: x + 25, y: 77), CGPoint(x: x + 16, y: 77)]), c(1, 1, 1, 0.45))
+                }
+            case .hazard:
+                for k in 0..<8 {
+                    let x = 22 + CGFloat(k) * 25
+                    fill(ctx, ell(x, 45, 7, 4), c(0.05, 0.05, 0.05, 0.8))
+                    fill(ctx, ell(x, 45, 4, 2.2), c(0.6, 1, 0.2))
+                }
+            case .gold:
+                for k in 0..<10 {
+                    let x = 18 + CGFloat(k) * 20, y: CGFloat = 46 + CGFloat(k % 3) * 4
+                    glow(ctx, c(1, 1, 0.8), 4) {
+                        fill(ctx, poly([CGPoint(x: x, y: y + 4), CGPoint(x: x + 1, y: y + 1), CGPoint(x: x + 4, y: y), CGPoint(x: x + 1, y: y - 1),
+                                        CGPoint(x: x, y: y - 4), CGPoint(x: x - 1, y: y - 1), CGPoint(x: x - 4, y: y), CGPoint(x: x - 1, y: y + 1)]), c(1, 1, 0.9))
+                    }
+                }
+            case .pumpkin:
+                // carved jack-o'-lantern face glowing on the front of the disc
+                for k in 0..<9 {
+                    let x = 14 + CGFloat(k) * 24
+                    stroke(ctx, line(CGPoint(x: x, y: 36), CGPoint(x: x + 6, y: 76)), t.hullBottom.withAlphaComponent(0.45), 2)
+                }
+                let lit = c(1, 0.92, 0.35)
+                glow(ctx, c(1, 0.8, 0.2), 8) {
+                    fill(ctx, poly([CGPoint(x: 76, y: 48), CGPoint(x: 92, y: 48), CGPoint(x: 84, y: 60)]), lit)
+                    fill(ctx, poly([CGPoint(x: 128, y: 48), CGPoint(x: 144, y: 48), CGPoint(x: 136, y: 60)]), lit)
+                    fill(ctx, poly([CGPoint(x: 86, y: 44), CGPoint(x: 94, y: 40), CGPoint(x: 100, y: 44), CGPoint(x: 106, y: 39), CGPoint(x: 112, y: 44),
+                                    CGPoint(x: 118, y: 39), CGPoint(x: 124, y: 44), CGPoint(x: 132, y: 40), CGPoint(x: 136, y: 44),
+                                    CGPoint(x: 126, y: 38), CGPoint(x: 110, y: 36), CGPoint(x: 94, y: 38)]), lit)
+                }
+            default: break
+            }
+            ctx.restoreGState()
+            // neon band on the front rim
+            ctx.saveGState()
+            ctx.clip(to: CGRect(x: 0, y: 0, width: 220, height: 56))
+            if t.extra == .rainbow {
+                let cols = [c(1, 0.25, 0.3), c(1, 0.6, 0.15), c(1, 0.95, 0.2), c(0.3, 1, 0.4), c(0.25, 0.7, 1), c(0.7, 0.4, 1)]
+                for (k, col) in cols.enumerated() {
+                    ctx.saveGState()
+                    ctx.clip(to: CGRect(x: 16 + CGFloat(k) * 31.5, y: 0, width: 31.5, height: 56))
+                    glow(ctx, col, 8) { stroke(ctx, ell(110, 56, 188, 26), col, 3.5) }
+                    ctx.restoreGState()
+                }
+            } else {
+                glow(ctx, n, 8) { stroke(ctx, ell(110, 56, 188, 26), n, 3) }
+            }
+            stroke(ctx, ell(110, 56, 188, 26), c(1, 1, 1, 0.7), 1)
+            ctx.restoreGState()
+            if t.extra == .spikes {
+                for k in 0..<7 {
+                    let x = 28 + CGFloat(k) * 27
+                    let y: CGFloat = 40 + abs(CGFloat(k) - 3) * 2.2
+                    linear(ctx, poly([CGPoint(x: x - 5, y: y + 4), CGPoint(x: x + 5, y: y + 4), CGPoint(x: x, y: y - 9)]),
+                           [c(0.75, 0.75, 0.8), c(0.2, 0.2, 0.25)], CGPoint(x: x - 5, y: 0), CGPoint(x: x + 5, y: 0))
+                }
+            }
+            let deck = ell(110, 64, 160, 22)
+            linear(ctx, deck, [t.deck, t.deck.darker(0.45)], CGPoint(x: 0, y: 75), CGPoint(x: 0, y: 53))
+            if t.extra == .cyberGrid {
+                ctx.saveGState()
+                ctx.addPath(deck)
+                ctx.clip()
+                for k in 0..<12 { stroke(ctx, line(CGPoint(x: 30 + CGFloat(k) * 14, y: 53), CGPoint(x: 40 + CGFloat(k) * 12, y: 75)), n.withAlphaComponent(0.5), 0.8) }
+                stroke(ctx, line(CGPoint(x: 30, y: 64), CGPoint(x: 190, y: 64)), n.withAlphaComponent(0.5), 0.8)
+                ctx.restoreGState()
+            }
+            for (x, y, w) in [(36, 50, 18), (70, 45, 22), (150, 45, 22), (184, 50, 18)] as [(CGFloat, CGFloat, CGFloat)] {
+                glow(ctx, n, 6) { fill(ctx, rr(x, y, w, 3.2, 1.6), n) }
+                fill(ctx, rr(x, y, w * 0.7, 1.2, 0.6), c(1, 1, 1, 0.8))
+            }
+            linear(ctx, ell(110, 70, 100, 14), [t.deck.darker(1.1), t.deck.darker(0.5)], CGPoint(x: 0, y: 77), CGPoint(x: 0, y: 63))
+            // alien
+            linear(ctx, ell(110, 78, 50, 20), [n.darker(0.55), c(0.2, 0.18, 0.3)], CGPoint(x: 0, y: 88), CGPoint(x: 0, y: 68))
+            fill(ctx, rr(110, 88, 8, 12, 3), t.alien.darker(0.75))
+            ball(ctx, ell(110, 104, 28, 34), t.alien, light: 1.4, dark: 0.55, rect: CGRect(x: 96, y: 87, width: 28, height: 34))
+            for sgn in [-1, 1] as [CGFloat] {
+                ctx.saveGState()
+                ctx.translateBy(x: 110 + sgn * 6.5, y: 101)
+                ctx.rotate(by: sgn * 0.45)
+                fill(ctx, ell(0, 0, 9, 13), c(0.05, 0.03, 0.1))
+                fill(ctx, ell(-1.5 * sgn, 2.5, 2.5, 3), c(1, 1, 1, 0.6))
+                ctx.restoreGState()
+            }
+            if t.extra == .gold {
+                // a little crown for the king
+                let cr = poly([CGPoint(x: 100, y: 118), CGPoint(x: 120, y: 118), CGPoint(x: 122, y: 128), CGPoint(x: 116, y: 123),
+                               CGPoint(x: 110, y: 130), CGPoint(x: 104, y: 123), CGPoint(x: 98, y: 128)])
+                linear(ctx, cr, [c(1, 0.95, 0.5), c(0.85, 0.55, 0.05)], CGPoint(x: 0, y: 130), CGPoint(x: 0, y: 118))
+            }
+            if t.extra == .pumpkin {
+                fill(ctx, rr(110, 124, 4, 8, 1.5), c(0.3, 0.5, 0.15))
+            }
+            ctx.saveGState()
+            ctx.clip(to: CGRect(x: 0, y: 70, width: 220, height: 62))
+            let dome = ell(110, 70, 96, 112)
+            linear(ctx, dome, [n.withAlphaComponent(0.12), t.glass.withAlphaComponent(0.3)], CGPoint(x: 0, y: 70), CGPoint(x: 0, y: 126))
+            stroke(ctx, dome, t.glass.withAlphaComponent(0.6), 1.4)
+            ctx.restoreGState()
+            fill(ctx, ell(82, 104, 10, 26), c(1, 1, 1, 0.28))
+            fill(ctx, ell(90, 118, 14, 6), c(1, 1, 1, 0.22))
+        }
+    }
+
+    /// Soft round shadow (one shared texture so many shadows draw in one batch).
+    static func shadowTex() -> SKTexture {
+        return texture("shadow", CGSize(width: 64, height: 24), scale: 1) { ctx, _ in
+            radial(ctx, ell(32, 12, 64, 24), [c(0, 0, 0, 0.55), c(0, 0, 0, 0.3), c(0, 0, 0, 0)], CGPoint(x: 32, y: 12), 32, [0, 0.55, 1])
+        }
+    }
+
     // MARK: - Beam
 
     /// White cone; tinted and drawn additively. Top (narrow) is at the top of the image.
