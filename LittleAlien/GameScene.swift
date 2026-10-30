@@ -65,6 +65,7 @@ final class GameScene: SKScene {
     private let landing = SKSpriteNode()
     private let landing2 = SKSpriteNode()
     private var ufoScale: CGFloat = 1
+    private var sideInset: CGFloat = 0
     private var nextFenceX: CGFloat = 0
     private var nextFarX: CGFloat = 0
     // left depth slider
@@ -176,6 +177,8 @@ final class GameScene: SKScene {
         cloudTiles = []; farTiles = []; nearTiles = []; hedgeTiles = []
 
         anchorPoint = .zero
+        let ins = view?.safeAreaInsets ?? .zero
+        sideInset = max(ins.left, ins.right)
         W = size.width
         H = size.height
         ws = max(0.85, min(1.6, H / 390))
@@ -254,7 +257,7 @@ final class GameScene: SKScene {
         vignette.position = CGPoint(x: W / 2, y: H / 2)
         vignette.zPosition = 900
         addChild(vignette)
-        redFlash = SKSpriteNode(texture: Art.vignette(size: CGSize(width: 256, height: 256 * H / W), color: .red, strength: 0.95))
+        redFlash = SKSpriteNode(texture: Art.vignette(size: CGSize(width: 256, height: 256 * H / W), color: .red, strength: 0.55))
         redFlash.size = size
         redFlash.position = vignette.position
         redFlash.zPosition = 901
@@ -277,7 +280,7 @@ final class GameScene: SKScene {
     private func setUFOArt() {
         ufoArt.removeFromParent()
         ufoArt = Art.ufo(store.d.selectedUFO)
-        ufoScale = min(W * 0.25, H * 0.55) / 220
+        ufoScale = min(W * 0.23, H * 0.5) / 220
         ufoArt.setScale(ufoScale)
         ufo.addChild(ufoArt)
     }
@@ -321,9 +324,9 @@ final class GameScene: SKScene {
             }
             return out
         }
-        let cloudH = H * 0.42
-        cloudTiles = tiles(Painter.clouds(CGSize(width: W, height: cloudH)), cloudH, H * 0.46, 2)
-        let farH = H * 0.2
+        let cloudH = H * 0.38
+        cloudTiles = tiles(Painter.clouds(CGSize(width: W, height: cloudH)), cloudH, H * 0.6, 2)
+        let farH = H * 0.25
         farTiles = tiles(Painter.mountains(CGSize(width: W, height: farH), seed: 21, top: Art.rgb(0.2, 0.24, 0.45), bottom: Art.rgb(0.12, 0.15, 0.3), rough: 0.6), farH, fieldTop - 4, 3)
         let nearH = H * 0.13
         nearTiles = tiles(Painter.mountains(CGSize(width: W, height: nearH), seed: 4, top: Art.rgb(0.1, 0.13, 0.27), bottom: Art.rgb(0.05, 0.07, 0.15), rough: 0.35), nearH, fieldTop - 4, 4)
@@ -374,7 +377,7 @@ final class GameScene: SKScene {
         let top = H / 2
         let hs = min(1.25, max(0.85, H / 390))
         // coins + distance pills (top-left)
-        let lx = -W / 2 + 18 + 62 * hs
+        let lx = -W / 2 + max(18, sideInset * 0.5) + 62 * hs
         hud.addChild(pill(124 * hs, 30 * hs, at: CGPoint(x: lx, y: top - 26 * hs)))
         let coin = SKSpriteNode(texture: Painter.coin(), size: CGSize(width: 30 * hs, height: 30 * hs))
         coin.position = CGPoint(x: lx - 44 * hs, y: top - 26 * hs)
@@ -429,7 +432,7 @@ final class GameScene: SKScene {
         hud.addChild(powerLabel)
 
         // pause (dark round button)
-        let px = W / 2 - 40 * hs, py = top - 36 * hs
+        let px = W / 2 - max(40 * hs, sideInset), py = top - 36 * hs
         let pc = SKShapeNode(circleOfRadius: 24 * hs)
         pc.fillColor = Art.rgb(0.02, 0.03, 0.08, 0.6)
         pc.strokeColor = UIColor(white: 1, alpha: 0.2)
@@ -447,7 +450,7 @@ final class GameScene: SKScene {
         slider.removeAllChildren()
         slider.removeFromParent()
         let sw = 40 * hs, sh = H * 0.36
-        let sxp = -W / 2 + 14 + sw / 2, syp = -H * 0.08
+        let sxp = -W / 2 + max(14, sideInset + 4) + sw / 2, syp = -H * 0.1
         let cap = SKShapeNode(rectOf: CGSize(width: sw, height: sh), cornerRadius: sw / 2)
         cap.fillColor = Art.rgb(0.02, 0.03, 0.08, 0.55)
         cap.strokeColor = UIColor(white: 1, alpha: 0.12)
@@ -1136,7 +1139,7 @@ final class GameScene: SKScene {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false; sliding = false }
 
     private func clampTarget() {
-        target.x = max(W * 0.1, min(W * 0.96, target.x))
+        target.x = max(sideInset + W * 0.08, min(W * 0.96, target.x))
         target.y = max(sy(dMin + 0.02), min(sy(dMax - 0.05), target.y))
     }
 
@@ -1274,7 +1277,7 @@ final class GameScene: SKScene {
 
         let far = (tD - dMin) / (dMax - dMin)
         let wantX = max(W * 0.2, min(W * 0.82, beamPt.x + W * 0.03))
-        let wantY = H * (0.72 + 0.03 * (1 - far))
+        let wantY = H * (0.6 + 0.03 * (1 - far))
         let oldX = ufoPos.x
         let k = min(1, dt * (status == .intro && !menu ? 2.2 : 3.2))
         ufoPos.x += (wantX - ufoPos.x) * k
@@ -2158,8 +2161,8 @@ final class GameScene: SKScene {
         hapticHeavy.impactOccurred()
         sound.play("hit")
         redFlash.removeAllActions()
-        redFlash.alpha = 1
-        redFlash.run(.fadeOut(withDuration: 0.6))
+        redFlash.alpha = 0.85
+        redFlash.run(.fadeOut(withDuration: 0.45))
         shake()
         if power != nil && !store.keepsPowerups { power = nil; powerTimer = 0 }
         dropLevel()

@@ -668,10 +668,10 @@ enum Painter {
     static func clouds(_ size: CGSize) -> SKTexture {
         return texture("clouds\(Int(size.width))x\(Int(size.height))", size, scale: 1.5) { ctx, s in
             var rng = SeededRNG(seed: 5)
-            let banks = 5
+            let banks = 4
             for b in 0..<banks {
                 let cx = s.width * (CGFloat(b) + 0.3 + CGFloat.random(in: 0...0.4, using: &rng)) / CGFloat(banks)
-                let cy = s.height * CGFloat.random(in: 0.25...0.6, using: &rng)
+                let cy = s.height * CGFloat.random(in: 0.3...0.62, using: &rng)
                 let bw = s.width * CGFloat.random(in: 0.18...0.3, using: &rng)
                 for k in 0..<18 {
                     let t = CGFloat(k) / 17
