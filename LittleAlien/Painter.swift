@@ -6,9 +6,14 @@ import SpriteKit
 /// All drawing uses y-up coordinates (origin bottom-left) like SpriteKit.
 enum Painter {
     private static var cache: [String: SKTexture] = [:]
+    /// Native screen scale (3 on modern iPhones).
+    static let screen: CGFloat = UIScreen.main.scale
+    /// Characters, buildings and the saucer get drawn up to ~2x bigger than their canvas
+    /// on screen, so they are painted at twice the screen scale to stay razor sharp.
+    static let hi: CGFloat = min(6, UIScreen.main.scale * 2)
     private static let cs = CGColorSpaceCreateDeviceRGB()
 
-    static func texture(_ key: String, _ size: CGSize, scale: CGFloat = 3, _ draw: (CGContext, CGSize) -> Void) -> SKTexture {
+    static func texture(_ key: String, _ size: CGSize, scale: CGFloat = Painter.hi, _ draw: (CGContext, CGSize) -> Void) -> SKTexture {
         if let t = cache[key] { return t }
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = scale
@@ -317,7 +322,7 @@ enum Painter {
 
     /// Soft round shadow (one shared texture so many shadows draw in one batch).
     static func shadowTex() -> SKTexture {
-        return texture("shadow", CGSize(width: 64, height: 24), scale: 1) { ctx, _ in
+        return texture("shadow", CGSize(width: 64, height: 24), scale: Painter.screen) { ctx, _ in
             radial(ctx, ell(32, 12, 64, 24), [c(0, 0, 0, 0.55), c(0, 0, 0, 0.3), c(0, 0, 0, 0)], CGPoint(x: 32, y: 12), 32, [0, 0.55, 1])
         }
     }
@@ -326,7 +331,7 @@ enum Painter {
 
     /// White cone; tinted and drawn additively. Top (narrow) is at the top of the image.
     static func beam() -> SKTexture {
-        return texture("beam", CGSize(width: 128, height: 256), scale: 2) { ctx, s in
+        return texture("beam", CGSize(width: 128, height: 256), scale: Painter.hi) { ctx, s in
             for k in 0..<7 {
                 let f = 1 - CGFloat(k) * 0.13
                 let top = 16 * f, bot = 64 * f
@@ -342,7 +347,7 @@ enum Painter {
     }
 
     static func landing() -> SKTexture {
-        return texture("landing", CGSize(width: 160, height: 64), scale: 2) { ctx, _ in
+        return texture("landing", CGSize(width: 160, height: 64), scale: Painter.hi) { ctx, _ in
             radial(ctx, ell(80, 32, 160, 64), [c(1, 1, 1, 0.75), c(1, 1, 1, 0.25), c(1, 1, 1, 0)], CGPoint(x: 80, y: 32), 80, [0, 0.5, 1])
             ctx.saveGState()
             ctx.translateBy(x: 0, y: 32)
@@ -727,7 +732,7 @@ enum Painter {
     }
 
     static func tuft(_ v: Int) -> SKTexture {
-        return texture("tuft\(v)", CGSize(width: 22, height: 16), scale: 2) { ctx, _ in
+        return texture("tuft\(v)", CGSize(width: 22, height: 16), scale: Painter.hi) { ctx, _ in
             let g = [c(0.18, 0.32, 0.18), c(0.24, 0.38, 0.2), c(0.14, 0.26, 0.16)][v % 3]
             for k in 0..<6 {
                 let x = 3 + CGFloat(k) * 3.2
@@ -755,14 +760,14 @@ enum Painter {
     }
 
     static func puddle() -> SKTexture {
-        return texture("puddle", CGSize(width: 100, height: 40), scale: 2) { ctx, _ in
+        return texture("puddle", CGSize(width: 100, height: 40), scale: Painter.screen) { ctx, _ in
             radial(ctx, ell(50, 20, 100, 40), [c(0.45, 0.35, 0.75, 0.55), c(0.15, 0.15, 0.3, 0.6), c(0.1, 0.12, 0.15, 0)], CGPoint(x: 46, y: 22), 50, [0, 0.7, 1])
             fill(ctx, ell(40, 24, 30, 4), c(0.8, 0.7, 1, 0.25))
         }
     }
 
     static func dirt() -> SKTexture {
-        return texture("dirt", CGSize(width: 100, height: 40), scale: 2) { ctx, _ in
+        return texture("dirt", CGSize(width: 100, height: 40), scale: Painter.screen) { ctx, _ in
             radial(ctx, ell(50, 20, 100, 40), [c(0.2, 0.17, 0.12, 0.6), c(0.18, 0.15, 0.1, 0)], CGPoint(x: 50, y: 20), 50)
         }
     }
@@ -783,11 +788,11 @@ enum Painter {
     // MARK: - Backdrop (painted once per screen size)
 
     static func sky(_ size: CGSize) -> SKTexture {
-        return texture("sky\(Int(size.width))x\(Int(size.height))", size, scale: 2) { ctx, s in
+        return texture("sky\(Int(size.width))x\(Int(size.height))", size, scale: Painter.screen) { ctx, s in
             let all = CGPath(rect: CGRect(origin: .zero, size: s), transform: nil)
             linear(ctx, all, [c(0.16, 0.16, 0.36), c(0.08, 0.1, 0.24), c(0.03, 0.05, 0.14)], CGPoint(x: 0, y: s.height * 0.35), CGPoint(x: 0, y: s.height), [0, 0.4, 1])
             var rng = SeededRNG(seed: 11)
-            for _ in 0..<Int(s.width * s.height / 900) {
+            for _ in 0..<Int(s.width * s.height / 450) {
                 let x = CGFloat.random(in: 0...s.width, using: &rng)
                 let y = CGFloat.random(in: s.height * 0.3...s.height, using: &rng)
                 let r = CGFloat.random(in: 0.3...1.1, using: &rng)
@@ -816,7 +821,7 @@ enum Painter {
 
     /// Horizontally tileable cloud bank (width = tile).
     static func clouds(_ size: CGSize) -> SKTexture {
-        return texture("clouds\(Int(size.width))x\(Int(size.height))", size, scale: 1.5) { ctx, s in
+        return texture("clouds\(Int(size.width))x\(Int(size.height))", size, scale: Painter.screen) { ctx, s in
             var rng = SeededRNG(seed: 5)
             let banks = 4
             for b in 0..<banks {
@@ -841,7 +846,7 @@ enum Painter {
 
     /// Tileable mountain range. `seed` changes the ridge, `col` its colour.
     static func mountains(_ size: CGSize, seed: Int, top: UIColor, bottom: UIColor, rough: CGFloat) -> SKTexture {
-        return texture("mtn\(seed)_\(Int(size.width))x\(Int(size.height))", size, scale: 1.5) { ctx, s in
+        return texture("mtn\(seed)_\(Int(size.width))x\(Int(size.height))", size, scale: Painter.screen) { ctx, s in
             var rng = SeededRNG(seed: UInt64(seed))
             var waves: [(CGFloat, CGFloat, CGFloat)] = []
             for k in [2, 3, 5, 7, 11, 17] {
@@ -864,7 +869,7 @@ enum Painter {
     }
 
     static func hedge(_ size: CGSize) -> SKTexture {
-        return texture("hedge\(Int(size.width))x\(Int(size.height))", size, scale: 1.5) { ctx, s in
+        return texture("hedge\(Int(size.width))x\(Int(size.height))", size, scale: Painter.screen) { ctx, s in
             var rng = SeededRNG(seed: 9)
             fill(ctx, CGPath(rect: CGRect(x: 0, y: 0, width: s.width, height: s.height * 0.35), transform: nil), c(0.06, 0.1, 0.12))
             var x: CGFloat = 0
@@ -879,12 +884,12 @@ enum Painter {
     }
 
     static func field(_ size: CGSize) -> SKTexture {
-        return texture("field\(Int(size.width))x\(Int(size.height))", size, scale: 1) { ctx, s in
+        return texture("field\(Int(size.width))x\(Int(size.height))", size, scale: Painter.screen) { ctx, s in
             let all = CGPath(rect: CGRect(origin: .zero, size: s), transform: nil)
             linear(ctx, all, [c(0.2, 0.25, 0.32), c(0.15, 0.24, 0.18), c(0.1, 0.18, 0.11), c(0.04, 0.07, 0.05)],
                    CGPoint(x: 0, y: s.height), CGPoint(x: 0, y: 0), [0, 0.12, 0.55, 1])
             var rng = SeededRNG(seed: 3)
-            for _ in 0..<Int(s.width * s.height / 60) {
+            for _ in 0..<Int(s.width * s.height / 22) {
                 let x = CGFloat.random(in: 0...s.width, using: &rng)
                 let y = CGFloat.random(in: 0...s.height, using: &rng)
                 let l = CGFloat.random(in: 0.7...1.3, using: &rng)

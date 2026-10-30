@@ -66,6 +66,9 @@ final class GameScene: SKScene {
     private let landing2 = SKSpriteNode()
     private var ufoScale: CGFloat = 1
     private var sideInset: CGFloat = 0
+    private var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
+    private let beamDust = SKEmitterNode()
+    private var haze = SKSpriteNode()
     private var nextFenceX: CGFloat = 0
     private var nextFarX: CGFloat = 0
     // left depth slider
@@ -236,13 +239,55 @@ final class GameScene: SKScene {
             addChild(l)
         }
         let dot = Art.softDot()
-        for _ in 0..<16 {
+        for _ in 0..<28 {
             let s = SKSpriteNode(texture: dot)
             s.size = CGSize(width: 7 * ws, height: 7 * ws)
             s.blendMode = .add
             s.zPosition = 602
             addChild(s)
             sparkles.append((s, CGFloat.random(in: 0...1), CGFloat.random(in: -1...1)))
+        }
+
+        // glowing dust that streams up the beam
+        beamDust.removeFromParent()
+        beamDust.particleTexture = dot
+        beamDust.particleBirthRate = 0
+        beamDust.particleLifetime = 0.9
+        beamDust.particleLifetimeRange = 0.3
+        beamDust.particleSize = CGSize(width: 7 * ws, height: 7 * ws)
+        beamDust.particleScaleRange = 0.6
+        beamDust.particleScaleSpeed = -0.7
+        beamDust.particleAlpha = 0.95
+        beamDust.particleAlphaSpeed = -0.9
+        beamDust.particleBlendMode = .add
+        beamDust.particleColorBlendFactor = 1
+        beamDust.emissionAngleRange = 0.18
+        beamDust.zPosition = 604
+        beamDust.targetNode = self
+        addChild(beamDust)
+
+        // haze over the far field: distant things fade into the night air
+        haze = SKSpriteNode(texture: Art.gradient(size: CGSize(width: 8, height: 64),
+                                                   colors: [Art.rgb(0.3, 0.35, 0.62, 0), Art.rgb(0.28, 0.33, 0.6, 0.3), Art.rgb(0.25, 0.3, 0.5, 0)],
+                                                   locations: [0, 0.5, 1]))
+        haze.anchorPoint = .zero
+        haze.size = CGSize(width: W, height: H * 0.16)
+        haze.position = CGPoint(x: 0, y: sy(2.5) - H * 0.03)
+        haze.zPosition = 420
+        addChild(haze)
+
+        // fireflies drifting over the grass
+        fireflies = []
+        for _ in 0..<22 {
+            let f = SKSpriteNode(texture: dot)
+            f.size = CGSize(width: 6 * ws, height: 6 * ws)
+            f.color = Art.rgb(1, 0.92, 0.45)
+            f.colorBlendFactor = 1
+            f.blendMode = .add
+            f.position = CGPoint(x: CGFloat.random(in: 0...W), y: CGFloat.random(in: H * 0.04...H * 0.42))
+            f.zPosition = 430
+            addChild(f)
+            fireflies.append((f, CGFloat.random(in: 0...6.28), CGFloat.random(in: 0.6...1.4)))
         }
 
         liftLayer.zPosition = 650
@@ -354,7 +399,18 @@ final class GameScene: SKScene {
         bg.addChild(fog)
     }
 
+    private func moveFireflies(_ dx: CGFloat) {
+        for f in fireflies {
+            let n = f.node
+            n.position.x += -dx * P / 1.8 + sin(clock * f.speed + f.phase) * 0.4
+            n.position.y += cos(clock * f.speed * 0.8 + f.phase) * 0.25
+            if n.position.x < -10 { n.position.x = W + 10; n.position.y = CGFloat.random(in: H * 0.04...H * 0.42) }
+            n.alpha = 0.25 + 0.75 * max(0, sin(clock * f.speed * 2 + f.phase))
+        }
+    }
+
     private func scrollBackground(_ dx: CGFloat) {
+        moveFireflies(dx)
         func scroll(_ arr: [SKSpriteNode], _ amount: CGFloat) {
             for t in arr {
                 t.position.x -= amount
@@ -1328,6 +1384,7 @@ final class GameScene: SKScene {
     private func drawBeam() {
         if !beamVisible {
             for n in [beamSprite, beamInner, landing, landing2] { n.isHidden = true }
+            beamDust.particleBirthRate = 0
             beamGlow.path = nil
             beamCore.path = nil
             beamRing.path = nil
@@ -1379,6 +1436,14 @@ final class GameScene: SKScene {
         beamCore.path = nil
         beamRing.path = nil
         crosshair.isHidden = true
+
+        beamDust.particleBirthRate = 110
+        beamDust.position = T
+        beamDust.emissionAngle = atan2(U.y - T.y, U.x - T.x)
+        beamDust.particleSpeed = len / 0.9
+        beamDust.particleSpeedRange = len * 0.3
+        beamDust.particlePositionRange = CGVector(dx: r * 1.4, dy: r * 0.4)
+        beamDust.particleColor = base.darker(1.5)
 
         for i in 0..<sparkles.count {
             var sp = sparkles[i]

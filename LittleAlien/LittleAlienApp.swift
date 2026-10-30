@@ -31,6 +31,8 @@ struct GameContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> GameSKView {
         let v = GameSKView(frame: .zero)
         v.backgroundColor = .black
+        // run at the phone's full refresh rate (120 Hz on ProMotion iPhones)
+        v.preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
         return v
     }
 

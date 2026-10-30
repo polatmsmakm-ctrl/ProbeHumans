@@ -2,13 +2,13 @@
 
 All audio is synthesized from scratch (no samples). Run:
     python3 tools/make_sounds.py
-Output goes to LittleAlien/Sounds/*.wav (mono, 22050 Hz, 16-bit).
+Output goes to LittleAlien/Sounds/*.wav (mono, 44100 Hz, 16-bit).
 """
 import os
 import numpy as np
 from scipy.signal import lfilter, butter
 
-SR = 22050
+SR = 44100
 OUT = os.path.join(os.path.dirname(__file__), "..", "LittleAlien", "Sounds")
 os.makedirs(OUT, exist_ok=True)
 rng = np.random.default_rng(7)

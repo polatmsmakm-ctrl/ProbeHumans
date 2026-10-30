@@ -26,6 +26,7 @@ targets:
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UIStatusBarHidden: true
+        CADisableMinimumFrameDurationOnPhone: true
         UIViewControllerBasedStatusBarAppearance: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft
