@@ -1,0 +1,65 @@
+name: Simulator screenshots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build for simulator
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodegen generate
+          xcodebuild -project LittleAlien.xcodeproj -scheme LittleAlien -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simbuild \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -n 30
+      - name: Run and screenshot
+        shell: bash
+        run: |
+          set -x
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          c.sort(key=lambda x: ('Pro' not in x['name'], x['name']))
+          print(c[0]['udid'])")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(ls -d simbuild/Build/Products/Debug-iphonesimulator/LittleAlien.app)
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p shots
+          xcrun simctl launch "$UDID" com.rashid.littlealien
+          sleep 9
+          xcrun simctl io "$UDID" screenshot shots/menu.png
+          xcrun simctl terminate "$UDID" com.rashid.littlealien
+          xcrun simctl launch "$UDID" com.rashid.littlealien -autoplay
+          sleep 8
+          xcrun simctl io "$UDID" screenshot shots/play1.png
+          sleep 6
+          xcrun simctl io "$UDID" screenshot shots/play2.png
+          sleep 10
+          xcrun simctl io "$UDID" screenshot shots/play3.png
+          ls -la shots
+      - name: Publish screenshots to shots branch
+        if: always()
+        run: |
+          mkdir -p shots
+          cd shots
+          git init -q -b shots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "from ${GITHUB_SHA::7}" > INFO.txt
+          git add -A
+          git commit -q -m "Screenshots ${GITHUB_SHA::7}"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f origin shots

@@ -2,14 +2,14 @@ import SpriteKit
 import UIKit
 
 enum UIK {
-    static let comic = "MarkerFelt-Wide"
+    static let comic = "AvenirNext-HeavyItalic"
     static let heavyItalic = "AvenirNext-HeavyItalic"
 
-    static let orange = UIColor(red: 1, green: 0.55, blue: 0.1, alpha: 1)
-    static let orangeDark = UIColor(red: 0.55, green: 0.12, blue: 0.05, alpha: 1)
-    static let panelFill = UIColor(red: 0.32, green: 0.22, blue: 0.58, alpha: 0.96)
-    static let panelEdge = UIColor(red: 0.5, green: 0.4, blue: 0.82, alpha: 1)
-    static let cardFill = UIColor(red: 0.24, green: 0.16, blue: 0.46, alpha: 1)
+    static let orange = UIColor(red: 1, green: 0.8, blue: 0.35, alpha: 1)
+    static let orangeDark = UIColor(red: 0.18, green: 0.08, blue: 0.4, alpha: 1)
+    static let panelFill = UIColor(red: 0.06, green: 0.07, blue: 0.18, alpha: 0.94)
+    static let panelEdge = UIColor(red: 0.5, green: 0.42, blue: 0.95, alpha: 1)
+    static let cardFill = UIColor(red: 0.11, green: 0.12, blue: 0.28, alpha: 1)
     static let cyan = UIColor(red: 0.62, green: 0.95, blue: 1, alpha: 1)
     static let yellow = UIColor(red: 1, green: 0.85, blue: 0.25, alpha: 1)
     static let green = UIColor(red: 0.2, green: 0.75, blue: 0.4, alpha: 1)
@@ -51,7 +51,8 @@ enum UIK {
         let p = SKShapeNode(rectOf: CGSize(width: w, height: h), cornerRadius: min(40, h * 0.18))
         p.fillColor = panelFill
         p.strokeColor = panelEdge
-        p.lineWidth = 5
+        p.lineWidth = 2.5
+        p.glowWidth = 2
         n.addChild(p)
         let inner = SKShapeNode(rectOf: CGSize(width: w - 22, height: h - 22), cornerRadius: min(32, h * 0.15))
         inner.fillColor = .clear

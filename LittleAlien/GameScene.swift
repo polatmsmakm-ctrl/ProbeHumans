@@ -56,6 +56,22 @@ final class GameScene: SKScene {
     private var clouds: [SKNode] = []
     private var trees: [SKNode] = []
     private var hills: [SKNode] = []
+    private var cloudTiles: [SKSpriteNode] = []
+    private var farTiles: [SKSpriteNode] = []
+    private var nearTiles: [SKSpriteNode] = []
+    private var hedgeTiles: [SKSpriteNode] = []
+    private let beamSprite = SKSpriteNode()
+    private let beamInner = SKSpriteNode()
+    private let landing = SKSpriteNode()
+    private let landing2 = SKSpriteNode()
+    private var ufoScale: CGFloat = 1
+    private var nextFenceX: CGFloat = 0
+    private var nextFarX: CGFloat = 0
+    // left depth slider
+    private let slider = SKNode()
+    private let sliderThumb = SKShapeNode()
+    private var sliderRect = CGRect.zero
+    private var sliding = false
 
     // HUD
     private var scoreLabel = SKLabelNode()
@@ -134,6 +150,8 @@ final class GameScene: SKScene {
     private var nextSign = Tuning.signEvery
     private var pendingSigns: [(CGFloat, [String])] = []
 
+    /// Launch argument used by the CI screenshot job: plays by itself.
+    private let autoplay = ProcessInfo.processInfo.arguments.contains("-autoplay")
     private let hapticLight = UIImpactFeedbackGenerator(style: .light)
     private let hapticHeavy = UIImpactFeedbackGenerator(style: .heavy)
 
@@ -155,15 +173,16 @@ final class GameScene: SKScene {
         for n in [bg, world, liftLayer, ufo, fx, ui, hud] { n.removeAllChildren() }
         creatures = []; obstacles = []; coins = []; pickups = []; decals = []; missiles = []; flocks = []
         clouds = []; trees = []; hills = []; sparkles = []; healthBars = []
+        cloudTiles = []; farTiles = []; nearTiles = []; hedgeTiles = []
 
         anchorPoint = .zero
         W = size.width
         H = size.height
         ws = max(0.85, min(1.6, H / 390))
         P = 1.5 * ws
-        horizonV = H * 0.8
-        A = H * 0.8
-        fieldTop = H * 0.6
+        horizonV = H * 0.62
+        A = H * 0.62
+        fieldTop = H * 0.44
         backgroundColor = Art.rgb(0.12, 0.08, 0.25)
 
         bg.zPosition = -1000
@@ -174,12 +193,12 @@ final class GameScene: SKScene {
         addChild(world)
         road.zPosition = 2
         road.lineWidth = 0
-        road.fillColor = Art.rgb(0.28, 0.38, 0.36, 0.9)
+        road.fillColor = Art.rgb(0.2, 0.17, 0.12, 0.92)
         road.strokeColor = .clear
         world.addChild(road)
         roadEdge.zPosition = 3
         roadEdge.lineWidth = 1.5
-        roadEdge.strokeColor = Art.rgb(0.2, 0.28, 0.27, 0.8)
+        roadEdge.strokeColor = Art.rgb(0.12, 0.1, 0.07, 0.7)
         roadEdge.fillColor = .clear
         world.addChild(roadEdge)
 
@@ -195,6 +214,23 @@ final class GameScene: SKScene {
         beamRing.lineWidth = 2
         addChild(beamRing)
         buildCrosshair()
+        crosshair.alpha = 0
+        for (b, z, a) in [(beamSprite, CGFloat(598), CGFloat(0.85)), (beamInner, CGFloat(599), CGFloat(0.9))] {
+            b.texture = Painter.beam()
+            b.anchorPoint = CGPoint(x: 0.5, y: 1)
+            b.blendMode = .add
+            b.colorBlendFactor = 1
+            b.zPosition = z
+            b.alpha = a
+            addChild(b)
+        }
+        for (l, z) in [(landing, CGFloat(597)), (landing2, CGFloat(603))] {
+            l.texture = Painter.landing()
+            l.blendMode = .add
+            l.colorBlendFactor = 1
+            l.zPosition = z
+            addChild(l)
+        }
         let dot = Art.softDot()
         for _ in 0..<16 {
             let s = SKSpriteNode(texture: dot)
@@ -233,12 +269,16 @@ final class GameScene: SKScene {
         buildHUD()
 
         showMenu()
+        if autoplay {
+            run(.wait(forDuration: 1.0)) { [weak self] in self?.startGame() }
+        }
     }
 
     private func setUFOArt() {
         ufoArt.removeFromParent()
         ufoArt = Art.ufo(store.d.selectedUFO)
-        ufoArt.setScale(1.35 * ws)
+        ufoScale = min(W * 0.25, H * 0.55) / 220
+        ufoArt.setScale(ufoScale)
         ufo.addChild(ufoArt)
     }
 
@@ -259,146 +299,180 @@ final class GameScene: SKScene {
     }
 
     private func buildBackground() {
-        let sky = SKSpriteNode(texture: Art.gradient(size: CGSize(width: 8, height: 256),
-                                                      colors: [Art.rgb(0.1, 0.07, 0.24), Art.rgb(0.3, 0.2, 0.52), Art.rgb(0.6, 0.42, 0.72)],
-                                                      locations: [0, 0.5, 1]))
-        sky.anchorPoint = CGPoint(x: 0, y: 0)
-        sky.size = CGSize(width: W, height: H - fieldTop + 30)
-        sky.position = CGPoint(x: 0, y: fieldTop - 30)
+        let sky = SKSpriteNode(texture: Painter.sky(size), size: size)
+        sky.anchorPoint = .zero
         sky.zPosition = 0
         bg.addChild(sky)
-
-        for i in 0..<14 {
-            let s = Art.circ(CGFloat.random(in: 0.6...1.4), UIColor(white: 1, alpha: 0.7), CGFloat.random(in: 0...W), CGFloat.random(in: H * 0.8...H))
-            s.zPosition = 1
-            s.run(.repeatForever(.sequence([.wait(forDuration: Double(i) * 0.2), .fadeAlpha(to: 0.2, duration: 0.8), .fadeAlpha(to: 0.8, duration: 0.8)])))
-            bg.addChild(s)
+        for i in 0..<10 {
+            let st = Art.circ(CGFloat.random(in: 0.7...1.3), .white, CGFloat.random(in: 0...W), CGFloat.random(in: H * 0.6...H))
+            st.zPosition = 1
+            st.run(.repeatForever(.sequence([.wait(forDuration: Double(i) * 0.3), .fadeAlpha(to: 0.15, duration: 0.9), .fadeAlpha(to: 0.9, duration: 0.9)])))
+            bg.addChild(st)
         }
-
-        // far hills (lavender silhouettes)
-        let hillW: CGFloat = 260 * ws
-        for i in 0..<Int(ceil(W / hillW)) + 2 {
-            let h = SKNode()
-            let p = CGMutablePath()
-            p.move(to: CGPoint(x: 0, y: 0))
-            p.addQuadCurve(to: CGPoint(x: hillW * 0.5, y: CGFloat.random(in: 26...46) * ws), control: CGPoint(x: hillW * 0.2, y: 30 * ws))
-            p.addQuadCurve(to: CGPoint(x: hillW, y: 0), control: CGPoint(x: hillW * 0.8, y: 34 * ws))
-            p.closeSubpath()
-            let shape = SKShapeNode(path: p)
-            shape.fillColor = Art.rgb(0.42, 0.33, 0.6)
-            shape.strokeColor = .clear
-            h.addChild(shape)
-            h.position = CGPoint(x: CGFloat(i) * hillW, y: fieldTop + 4 * ws)
-            h.zPosition = 2
-            bg.addChild(h)
-            hills.append(h)
+        func tiles(_ tex: SKTexture, _ h: CGFloat, _ y: CGFloat, _ z: CGFloat) -> [SKSpriteNode] {
+            var out: [SKSpriteNode] = []
+            for i in 0..<2 {
+                let t = SKSpriteNode(texture: tex, size: CGSize(width: W, height: h))
+                t.anchorPoint = .zero
+                t.position = CGPoint(x: CGFloat(i) * W, y: y)
+                t.zPosition = z
+                bg.addChild(t)
+                out.append(t)
+            }
+            return out
         }
-        for i in 0..<5 {
-            let c = Art.cloud()
-            c.setScale(CGFloat.random(in: 0.8...1.4) * ws)
-            c.position = CGPoint(x: CGFloat(i) * W / 4 + CGFloat.random(in: -40...40), y: CGFloat.random(in: H * 0.8...H * 0.95))
-            c.zPosition = 3
-            bg.addChild(c)
-            clouds.append(c)
-        }
+        let cloudH = H * 0.42
+        cloudTiles = tiles(Painter.clouds(CGSize(width: W, height: cloudH)), cloudH, H * 0.46, 2)
+        let farH = H * 0.2
+        farTiles = tiles(Painter.mountains(CGSize(width: W, height: farH), seed: 21, top: Art.rgb(0.2, 0.24, 0.45), bottom: Art.rgb(0.12, 0.15, 0.3), rough: 0.6), farH, fieldTop - 4, 3)
+        let nearH = H * 0.13
+        nearTiles = tiles(Painter.mountains(CGSize(width: W, height: nearH), seed: 4, top: Art.rgb(0.1, 0.13, 0.27), bottom: Art.rgb(0.05, 0.07, 0.15), rough: 0.35), nearH, fieldTop - 4, 4)
+        let hedgeH = H * 0.06
+        hedgeTiles = tiles(Painter.hedge(CGSize(width: W, height: hedgeH)), hedgeH, fieldTop - hedgeH * 0.45, 6)
 
-        // field: bright teal by the horizon fading to dark at the bottom
-        let field = SKSpriteNode(texture: Art.gradient(size: CGSize(width: 8, height: 256),
-                                                        colors: [Art.rgb(0.32, 0.72, 0.72), Art.rgb(0.16, 0.55, 0.57), Art.rgb(0.08, 0.36, 0.39), Art.rgb(0.03, 0.17, 0.2)],
-                                                        locations: [0, 0.18, 0.55, 1]))
+        let field = SKSpriteNode(texture: Painter.field(CGSize(width: W, height: fieldTop + 4)), size: CGSize(width: W, height: fieldTop + 4))
         field.anchorPoint = .zero
-        field.size = CGSize(width: W, height: fieldTop + 2)
-        field.position = .zero
-        field.zPosition = 4
+        field.zPosition = 5
         bg.addChild(field)
 
-        // tree line along the horizon
-        let tw: CGFloat = 46 * ws
-        for i in 0..<Int(ceil(W / tw)) + 3 {
-            let b = Art.bush()
-            b.setScale(CGFloat.random(in: 0.9...1.5) * ws)
-            b.position = CGPoint(x: CGFloat(i) * tw, y: fieldTop - 6 * ws)
-            b.zPosition = 6
-            bg.addChild(b)
-            trees.append(b)
-        }
-        let band = Art.rect(W, 8 * ws, Art.rgb(0.05, 0.25, 0.28), W / 2, fieldTop - 6 * ws)
-        band.zPosition = 6
-        bg.addChild(band)
-
-        // mist over the far field
+        // haze where the field meets the hills
         let fog = SKSpriteNode(texture: Art.gradient(size: CGSize(width: 8, height: 64),
-                                                      colors: [Art.rgb(0.6, 0.9, 0.9, 0.0), Art.rgb(0.55, 0.85, 0.85, 0.35), Art.rgb(0.5, 0.8, 0.8, 0)],
-                                                      locations: [0, 0.4, 1]))
+                                                      colors: [Art.rgb(0.45, 0.5, 0.8, 0), Art.rgb(0.4, 0.45, 0.75, 0.28), Art.rgb(0.3, 0.35, 0.6, 0)],
+                                                      locations: [0, 0.45, 1]))
         fog.anchorPoint = .zero
-        fog.size = CGSize(width: W, height: H * 0.16)
-        fog.position = CGPoint(x: 0, y: fieldTop - H * 0.12)
+        fog.size = CGSize(width: W, height: H * 0.14)
+        fog.position = CGPoint(x: 0, y: fieldTop - H * 0.07)
         fog.zPosition = 7
         bg.addChild(fog)
     }
 
     private func scrollBackground(_ dx: CGFloat) {
-        let tw: CGFloat = 46 * ws
-        for t in trees {
-            t.position.x -= dx * P / 3.4
-            if t.position.x < -tw * 1.5 { t.position.x += tw * CGFloat(trees.count) }
+        func scroll(_ arr: [SKSpriteNode], _ amount: CGFloat) {
+            for t in arr {
+                t.position.x -= amount
+                if t.position.x <= -W { t.position.x += W * 2 }
+            }
         }
-        let hw: CGFloat = 260 * ws
-        for h in hills {
-            h.position.x -= dx * P / 9
-            if h.position.x < -hw { h.position.x += hw * CGFloat(hills.count) }
-        }
-        for c in clouds {
-            c.position.x -= dx * P / 20 + 0.08
-            if c.position.x < -120 * ws { c.position.x = W + 120 * ws; c.position.y = CGFloat.random(in: H * 0.8...H * 0.95) }
-        }
+        scroll(cloudTiles, dx * P / 40 + 0.06)
+        scroll(farTiles, dx * P / 14)
+        scroll(nearTiles, dx * P / 7)
+        scroll(hedgeTiles, dx * P / 3.6)
     }
 
     // MARK: - HUD
 
+    private func pill(_ w: CGFloat, _ h: CGFloat, at p: CGPoint) -> SKShapeNode {
+        let n = SKShapeNode(rectOf: CGSize(width: w, height: h), cornerRadius: h / 2)
+        n.fillColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 0.55)
+        n.strokeColor = UIColor(white: 1, alpha: 0.1)
+        n.lineWidth = 1
+        n.position = p
+        return n
+    }
+
     private func buildHUD() {
         let top = H / 2
-        let ringR: CGFloat = 19
-        let rx: CGFloat = -10
-        let ry = top - 34
+        let hs = min(1.25, max(0.85, H / 390))
+        // coins + distance pills (top-left)
+        let lx = -W / 2 + 18 + 62 * hs
+        hud.addChild(pill(124 * hs, 30 * hs, at: CGPoint(x: lx, y: top - 26 * hs)))
+        let coin = SKSpriteNode(texture: Painter.coin(), size: CGSize(width: 30 * hs, height: 30 * hs))
+        coin.position = CGPoint(x: lx - 44 * hs, y: top - 26 * hs)
+        hud.addChild(coin)
+        coinLabel = UIK.label("0", size: 19 * hs, color: Art.rgb(1, 0.82, 0.35), font: UIK.heavyItalic, x: lx - 26 * hs, y: top - 26 * hs, align: .left, shadow: nil)
+        hud.addChild(coinLabel)
+        hud.addChild(pill(124 * hs, 30 * hs, at: CGPoint(x: lx, y: top - 62 * hs)))
+        let pin = CGMutablePath()
+        pin.addArc(center: CGPoint(x: 0, y: 3), radius: 5, startAngle: -0.5, endAngle: .pi + 0.5, clockwise: false)
+        pin.addLine(to: CGPoint(x: 0, y: -7))
+        pin.closeSubpath()
+        let pinN = SKShapeNode(path: pin)
+        pinN.fillColor = Art.rgb(0.35, 0.65, 1)
+        pinN.strokeColor = .clear
+        pinN.addChild(Art.circ(2, Art.rgb(0.05, 0.08, 0.2), 0, 3))
+        pinN.setScale(hs)
+        pinN.position = CGPoint(x: lx - 44 * hs, y: top - 62 * hs)
+        hud.addChild(pinN)
+        distLabel = UIK.label("0 M", size: 16 * hs, color: .white, font: UIK.heavyItalic, x: lx - 30 * hs, y: top - 62 * hs, align: .left, shadow: nil)
+        hud.addChild(distLabel)
+
+        // multiplier ring + score (top-centre)
+        let ringR: CGFloat = 25 * hs
+        let rx: CGFloat = -64 * hs
+        let ry = top - 40 * hs
         ringTrack.removeFromParent()
         ringFill.removeFromParent()
         ringTrack.path = CGPath(ellipseIn: CGRect(x: -ringR, y: -ringR, width: ringR * 2, height: ringR * 2), transform: nil)
-        ringTrack.strokeColor = UIColor(white: 0, alpha: 0.4)
-        ringTrack.lineWidth = 5
-        ringTrack.fillColor = Art.rgb(0.08, 0.15, 0.3, 0.6)
+        ringTrack.strokeColor = Art.rgb(0.15, 0.25, 0.45, 0.9)
+        ringTrack.lineWidth = 5 * hs
+        ringTrack.fillColor = Art.rgb(0.02, 0.04, 0.1, 0.7)
         ringTrack.position = CGPoint(x: rx, y: ry)
         hud.addChild(ringTrack)
-        ringFill.strokeColor = UIK.cyan
-        ringFill.lineWidth = 4
+        ringFill.strokeColor = Art.rgb(0.4, 0.8, 1)
+        ringFill.lineWidth = 4 * hs
+        ringFill.glowWidth = 3
         ringFill.lineCap = .round
         ringFill.position = ringTrack.position
         hud.addChild(ringFill)
-        multLabel = UIK.label("1X", size: 15, color: UIK.cyan, font: UIK.heavyItalic, x: rx, y: ry)
+        multLabel = UIK.label("1X", size: 20 * hs, color: .white, font: UIK.heavyItalic, x: rx, y: ry, shadow: Art.rgb(0.1, 0.3, 0.7, 0.8))
         hud.addChild(multLabel)
 
-        scoreLabel = UIK.label("0", size: 30, color: UIK.cyan, font: UIK.heavyItalic, x: rx + 28, y: ry - 6, align: .left,
-                               shadow: Art.rgb(0.05, 0.1, 0.25, 0.8))
+        scoreLabel = UIK.label("0", size: 40 * hs, color: .white, font: UIK.heavyItalic, x: rx + ringR + 10 * hs, y: ry - 8 * hs, align: .left,
+                               shadow: Art.rgb(0.05, 0.08, 0.25, 0.9))
         hud.addChild(scoreLabel)
 
-        let heart = UIK.label("♡", size: 18, color: UIK.cyan, font: "AvenirNext-Bold", x: rx + 34, y: top - 14, shadow: nil)
+        let heart = UIK.label("♡", size: 22 * hs, color: .white, font: "AvenirNext-Bold", x: rx + ringR + 22 * hs, y: top - 14 * hs, shadow: nil)
         heart.name = "heart"
         hud.addChild(heart)
 
-        coinLabel = UIK.label("0", size: 16, color: UIK.yellow, font: UIK.heavyItalic, x: -W / 2 + 44, y: top - 22, align: .left)
-        let ci = UIK.coinIcon(8)
-        ci.position = CGPoint(x: -W / 2 + 32, y: top - 22)
-        hud.addChild(ci)
-        hud.addChild(coinLabel)
-        distLabel = UIK.label("0 M", size: 14, color: UIColor(white: 1, alpha: 0.85), font: UIK.heavyItalic, x: -W / 2 + 26, y: top - 44, align: .left)
-        hud.addChild(distLabel)
-        powerLabel = UIK.label("", size: 16, color: .white, font: UIK.heavyItalic, x: 0, y: top - 74)
+        powerLabel = UIK.label("", size: 17 * hs, color: .white, font: UIK.heavyItalic, x: 0, y: top - 96 * hs)
         hud.addChild(powerLabel)
 
-        let pb = Button("II", w: 46, h: 40, fontSize: 26, plain: true) { [weak self] in self?.pauseGame() }
-        pb.position = CGPoint(x: W / 2 - 34, y: top - 26)
+        // pause (dark round button)
+        let px = W / 2 - 40 * hs, py = top - 36 * hs
+        let pc = SKShapeNode(circleOfRadius: 24 * hs)
+        pc.fillColor = Art.rgb(0.02, 0.03, 0.08, 0.6)
+        pc.strokeColor = UIColor(white: 1, alpha: 0.2)
+        pc.lineWidth = 1.5
+        pc.position = CGPoint(x: px, y: py)
+        pc.addChild(Art.rect(5 * hs, 18 * hs, .white, -5 * hs, 0, r: 1.5))
+        pc.addChild(Art.rect(5 * hs, 18 * hs, .white, 5 * hs, 0, r: 1.5))
+        hud.addChild(pc)
+        let pb = Button("", w: 52 * hs, h: 52 * hs, plain: true) { [weak self] in self?.pauseGame() }
+        pb.position = CGPoint(x: px, y: py)
         hud.addChild(pb)
         pauseButton = pb
+
+        // left slider: drag it to push the beam deeper into the field or closer
+        slider.removeAllChildren()
+        slider.removeFromParent()
+        let sw = 40 * hs, sh = H * 0.36
+        let sxp = -W / 2 + 14 + sw / 2, syp = -H * 0.08
+        let cap = SKShapeNode(rectOf: CGSize(width: sw, height: sh), cornerRadius: sw / 2)
+        cap.fillColor = Art.rgb(0.02, 0.03, 0.08, 0.55)
+        cap.strokeColor = UIColor(white: 1, alpha: 0.12)
+        cap.lineWidth = 1.2
+        slider.addChild(cap)
+        for d in [1, -1] as [CGFloat] {
+            let ch = CGMutablePath()
+            ch.move(to: CGPoint(x: -6 * hs, y: d * (sh / 2 - 22 * hs) - d * 3 * hs))
+            ch.addLine(to: CGPoint(x: 0, y: d * (sh / 2 - 22 * hs) + d * 3 * hs))
+            ch.addLine(to: CGPoint(x: 6 * hs, y: d * (sh / 2 - 22 * hs) - d * 3 * hs))
+            let cn = SKShapeNode(path: ch)
+            cn.strokeColor = UIColor(white: 1, alpha: 0.55)
+            cn.lineWidth = 2
+            cn.lineCap = .round
+            slider.addChild(cn)
+        }
+        sliderThumb.path = CGPath(roundedRect: CGRect(x: -sw * 0.32, y: -4 * hs, width: sw * 0.64, height: 8 * hs), cornerWidth: 4 * hs, cornerHeight: 4 * hs, transform: nil)
+        sliderThumb.fillColor = Art.rgb(0.75, 0.6, 1)
+        sliderThumb.strokeColor = .clear
+        sliderThumb.glowWidth = 4
+        slider.addChild(sliderThumb)
+        slider.position = CGPoint(x: sxp, y: syp)
+        hud.addChild(slider)
+        sliderRect = CGRect(x: W / 2 + sxp - sw, y: H / 2 + syp - sh / 2 - 10, width: sw * 2, height: sh + 20)
+
         hud.isHidden = true
         rebuildHealthBars()
     }
@@ -407,10 +481,12 @@ final class GameScene: SKScene {
         for b in healthBars { b.removeFromParent() }
         healthBars = []
         let top = H / 2
-        let segW: CGFloat = 22, segH: CGFloat = 6
+        let hs = min(1.25, max(0.85, H / 390))
+        let segW: CGFloat = 30 * hs, segH: CGFloat = 8 * hs
+        let x0 = -64 * hs + 25 * hs + 38 * hs
         for i in 0..<max(3, maxHealth) {
-            let s = SKShapeNode(rectOf: CGSize(width: segW, height: segH), cornerRadius: 3)
-            s.position = CGPoint(x: 42 + CGFloat(i) * (segW + 4) + segW / 2, y: top - 14)
+            let s = SKShapeNode(rectOf: CGSize(width: segW, height: segH), cornerRadius: segH / 2)
+            s.position = CGPoint(x: x0 + CGFloat(i) * (segW + 5 * hs) + segW / 2, y: top - 14 * hs)
             s.lineWidth = 1.2
             hud.addChild(s)
             healthBars.append(s)
@@ -432,11 +508,12 @@ final class GameScene: SKScene {
             if i >= maxHealth { b.isHidden = true; continue }
             b.isHidden = false
             let full = i < health
-            b.fillColor = full ? Art.rgb(0.35, 0.8, 1) : UIColor(white: 0, alpha: 0.3)
-            b.strokeColor = full ? Art.rgb(0.75, 0.95, 1) : Art.rgb(0.95, 0.25, 0.3)
+            b.fillColor = full ? Art.rgb(0.45, 0.82, 1) : Art.rgb(0.05, 0.08, 0.16, 0.8)
+            b.strokeColor = full ? Art.rgb(0.8, 0.95, 1, 0.9) : Art.rgb(0.25, 0.4, 0.6, 0.8)
+            b.glowWidth = full ? 1.5 : 0
         }
         if let heart = hud.childNode(withName: "heart") as? SKLabelNode {
-            heart.fontColor = (health <= 1 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : UIK.cyan
+            heart.fontColor = (health <= 1 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : .white
             heart.text = secondChance ? "♥" : "♡"
         }
 
@@ -444,12 +521,18 @@ final class GameScene: SKScene {
         let lo = Tuning.streakCounts[level]
         let hi = hasNext ? Tuning.streakCounts[level + 1] : lo + 1
         let frac = hasNext ? CGFloat(collectedStreak - lo) / CGFloat(max(1, hi - lo)) : 1
-        let r: CGFloat = 19
+        let hs = min(1.25, max(0.85, H / 390))
+        let r: CGFloat = 25 * hs
         let p = CGMutablePath()
         let start = CGFloat.pi / 2
         p.addArc(center: .zero, radius: r, startAngle: start, endAngle: start - max(0.01, min(1, frac)) * .pi * 2, clockwise: true)
         ringFill.path = p
-        ringFill.strokeColor = (level > 0 && sinceCollect > Tuning.streakWindow - 2 && Int(clock * 6) % 2 == 0) ? UIK.red : UIK.cyan
+        ringFill.strokeColor = (level > 0 && sinceCollect > Tuning.streakWindow - 2 && Int(clock * 6) % 2 == 0) ? UIK.red : Art.rgb(0.4, 0.8, 1)
+
+        // slider thumb follows the beam depth
+        let sh = H * 0.36
+        let t = (depth(atY: beamPt.y) - dMin) / (dMax - dMin)
+        sliderThumb.position = CGPoint(x: 0, y: -sh / 2 + 34 * hs + max(0, min(1, t)) * (sh - 68 * hs))
 
         if let pw = power {
             setText(powerLabel, "\(pw.title.uppercased())  \(Int(ceil(powerTimer)))")
@@ -669,7 +752,7 @@ final class GameScene: SKScene {
         case .ufo:
             return (0..<5).map { (i: Int) -> Card in
                 let icon = Art.ufo(i)
-                icon.setScale(0.9)
+                icon.setScale(0.55)
                 let owned = store.d.ufoOwned[i]
                 let tier = store.d.ufoTier[i]
                 if !owned {
@@ -702,7 +785,7 @@ final class GameScene: SKScene {
             let sel = store.d.selectedUFO
             let tier = store.d.ufoTier[sel]
             let upIcon = Art.ufo(sel)
-            upIcon.setScale(0.75)
+            upIcon.setScale(0.5)
             let upDesc = ["Add an extra health bar", "Score multiplier +1", "Keep power-ups when hit", "Fully upgraded"][tier]
             if tier < 3 {
                 let cost = Tuning.ufoTierCost[tier]
@@ -760,7 +843,7 @@ final class GameScene: SKScene {
         case .animals:
             return Unlockable.all.map { (u: Unlockable) -> Card in
                 let icon = Art.creature(u.kind, variant: u.variant)
-                icon.setScale(u.kind == .cow ? 1.4 : 1.9)
+                icon.setScale(u.kind == .cow ? 1.0 : 1.4)
                 let unlocked = store.isUnlocked(u.id)
                 if !unlocked { icon.alpha = 0.35 }
                 let desc = "\(u.points) points. " + (u.cost == 0 ? "Available at start" : (unlocked ? "Unlocked" : "Shows up once unlocked"))
@@ -857,6 +940,8 @@ final class GameScene: SKScene {
         nextCoinX = camX + 200
         nextPickupX = ahead + 1500
         nextTuftX = camX - (W * 0.5) * dMax / P
+        nextFenceX = camX - (W * 0.6) * 3.4 / P
+        nextFarX = camX - 300
         nextSign = Tuning.signEvery
         pendingSigns = []
         spawnWorld(menu: true)
@@ -919,6 +1004,8 @@ final class GameScene: SKScene {
         nextCoinX = camX + 320
         nextStaticX = ahead + (tutorial ? 1400 : 300)
         nextTuftX = camX - (W * 0.5) * dMax / P
+        nextFenceX = camX - (W * 0.6) * 3.4 / P
+        nextFarX = camX - 300
         spawnWorld(menu: false)
 
         // intro: saucer swoops in from the top-left
@@ -1013,14 +1100,31 @@ final class GameScene: SKScene {
             return
         }
         if screen == .playing {
+            let p = t.location(in: self)
+            if sliderRect.contains(p) {
+                sliding = true
+                slideTo(p.y)
+                return
+            }
             touching = true
-            lastTouch = t.location(in: self)
+            lastTouch = p
         }
     }
 
+    private func slideTo(_ y: CGFloat) {
+        let hs = min(1.25, max(0.85, H / 390))
+        let sh = H * 0.36
+        let bottom = sliderRect.midY - sh / 2 + 34 * hs
+        let t = max(0, min(1, (y - bottom) / (sh - 68 * hs)))
+        target.y = sy(dMin + 0.02 + t * (dMax - dMin - 0.07))
+        clampTarget()
+    }
+
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard screen == .playing, touching, let t = touches.first else { return }
+        guard screen == .playing, let t = touches.first else { return }
         let p = t.location(in: self)
+        if sliding { slideTo(p.y); return }
+        guard touching else { return }
         let sense = CGFloat(store.d.touchSense) * 1.25
         target.x += (p.x - lastTouch.x) * sense
         target.y += (p.y - lastTouch.y) * sense
@@ -1028,11 +1132,11 @@ final class GameScene: SKScene {
         clampTarget()
     }
 
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false }
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false; sliding = false }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false; sliding = false }
 
     private func clampTarget() {
-        target.x = max(W * 0.04, min(W * 0.96, target.x))
+        target.x = max(W * 0.1, min(W * 0.96, target.x))
         target.y = max(sy(dMin + 0.02), min(sy(dMax - 0.05), target.y))
     }
 
@@ -1090,6 +1194,14 @@ final class GameScene: SKScene {
 
     private func step(_ dt: CGFloat) {
         elapsed += dt
+        if autoplay && status == .play {
+            let pool = creatures.filter { !$0.lifting && sx($0.gx, $0.gd) > W * 0.35 && sx($0.gx, $0.gd) < W * 0.95 }
+            if let c = pool.min(by: { sx($0.gx, $0.gd) < sx($1.gx, $1.gd) }) {
+                target.x += (sx(c.gx, c.gd) - target.x) * min(1, dt * 3)
+                target.y += (sy(c.gd) - target.y) * min(1, dt * 3)
+                clampTarget()
+            }
+        }
         switch status {
         case .intro:
             curSpeed = moveSpeed
@@ -1161,8 +1273,8 @@ final class GameScene: SKScene {
         ufoDepth += (tD - ufoDepth) * min(1, dt * 2.2)
 
         let far = (tD - dMin) / (dMax - dMin)
-        let wantX = max(W * 0.12, min(W * 0.8, beamPt.x - W * 0.07))
-        let wantY = H * (0.8 + 0.06 * (1 - far))
+        let wantX = max(W * 0.2, min(W * 0.82, beamPt.x + W * 0.03))
+        let wantY = H * (0.72 + 0.03 * (1 - far))
         let oldX = ufoPos.x
         let k = min(1, dt * (status == .intro && !menu ? 2.2 : 3.2))
         ufoPos.x += (wantX - ufoPos.x) * k
@@ -1174,7 +1286,7 @@ final class GameScene: SKScene {
     }
 
     private var ufoBottom: CGPoint {
-        return CGPoint(x: ufo.position.x + sin(-ufoArt.zRotation) * 12 * ws, y: ufo.position.y - 16 * ws)
+        return CGPoint(x: ufo.position.x + sin(-ufoArt.zRotation) * 25 * ufoScale, y: ufo.position.y - 25 * ufoScale)
     }
 
     private var beamVisible: Bool {
@@ -1184,6 +1296,7 @@ final class GameScene: SKScene {
 
     private func drawBeam() {
         if !beamVisible {
+            for n in [beamSprite, beamInner, landing, landing2] { n.isHidden = true }
             beamGlow.path = nil
             beamCore.path = nil
             beamRing.path = nil
@@ -1191,58 +1304,62 @@ final class GameScene: SKScene {
             for s in sparkles { s.0.isHidden = true }
             return
         }
-        crosshair.isHidden = false
         let T = beamPt
         let U = ufoBottom
         let tD = depth(atY: T.y)
         let r = beamRadiusWorld * sc(tD)
-        func quad(_ topW: CGFloat, _ botW: CGFloat) -> CGPath {
-            let dx = T.x - U.x, dy = T.y - U.y
-            let len = max(1, hypot(dx, dy))
-            let nx = -dy / len, ny = dx / len
-            let p = CGMutablePath()
-            p.move(to: CGPoint(x: U.x + nx * topW, y: U.y + ny * topW))
-            p.addLine(to: CGPoint(x: T.x + nx * botW, y: T.y + ny * botW))
-            p.addLine(to: CGPoint(x: T.x - nx * botW, y: T.y - ny * botW))
-            p.addLine(to: CGPoint(x: U.x - nx * topW, y: U.y - ny * topW))
-            p.closeSubpath()
-            return p
-        }
         let base: UIColor
         if damageTimer > 0 {
-            base = Art.rgb(1, 0.25, 0.25)
+            base = Art.rgb(1, 0.25, 0.3)
         } else if power == .rampage {
-            base = Art.rgb(1, 0.55, 0.15)
+            base = Art.rgb(1, 0.55, 0.2)
         } else if power == .magnet {
-            base = Art.rgb(0.75, 0.45, 1)
+            base = Art.rgb(0.4, 0.75, 1)
         } else {
-            base = Art.rgb(0.3, 0.85, 1)
+            base = Painter.neon[store.d.selectedUFO].darker(1.05)
         }
-        let pulse = 0.04 * sin(clock * 12)
-        beamGlow.path = quad(13 * ws, r * 1.05)
-        beamGlow.fillColor = base.withAlphaComponent(0.22 + pulse)
-        beamCore.path = quad(6 * ws, r * 0.5)
-        beamCore.fillColor = base.withAlphaComponent(0.5 + pulse)
-        beamRing.path = CGPath(ellipseIn: CGRect(x: T.x - r, y: T.y - r * 0.45, width: r * 2, height: r * 0.9), transform: nil)
-        beamRing.fillColor = base.withAlphaComponent(0.35)
-        beamRing.strokeColor = UIColor.white.withAlphaComponent(0.7)
-        crosshair.position = T
-        crosshair.xScale = max(0.6, r / 13)
-        crosshair.yScale = crosshair.xScale * 0.5
-        crosshair.zRotation = 0
+        let dx = T.x - U.x, dy = T.y - U.y
+        let len = max(4, hypot(dx, dy))
+        let ang = atan2(dx, -dy)
+        let pulse = 0.06 * sin(clock * 10)
+        for (b, wf) in [(beamSprite, CGFloat(2.4)), (beamInner, CGFloat(1.2))] {
+            b.isHidden = false
+            b.position = U
+            b.size = CGSize(width: r * wf, height: len)
+            b.zRotation = ang
+            b.color = base
+        }
+        beamSprite.alpha = 0.8 + pulse
+        beamInner.alpha = 0.75 + pulse
+        beamInner.color = base.darker(1.5)
+        landing.isHidden = false
+        landing.position = T
+        landing.size = CGSize(width: r * 3.4, height: r * 1.35)
+        landing.color = base
+        landing.alpha = 0.9
+        landing2.isHidden = false
+        landing2.position = T
+        let k = 1 + 0.08 * sin(clock * 6)
+        landing2.size = CGSize(width: r * 2.1 * k, height: r * 0.85 * k)
+        landing2.color = base.darker(1.6)
+        landing2.alpha = 0.85
+        beamGlow.path = nil
+        beamCore.path = nil
+        beamRing.path = nil
+        crosshair.isHidden = true
 
         for i in 0..<sparkles.count {
-            var s = sparkles[i]
-            s.1 += 0.012 + CGFloat(i % 4) * 0.003
-            if s.1 > 1 { s.1 = 0; s.2 = CGFloat.random(in: -1...1) }
-            let t = s.1
-            let w = r * 0.8 * (1 - t) + 6 * ws * t
-            s.0.isHidden = false
-            s.0.position = CGPoint(x: T.x + (U.x - T.x) * t + s.2 * w, y: T.y + (U.y - T.y) * t)
-            s.0.alpha = sin(t * .pi) * 0.9
-            s.0.color = base
-            s.0.colorBlendFactor = 0.4
-            sparkles[i] = s
+            var sp = sparkles[i]
+            sp.1 += 0.012 + CGFloat(i % 4) * 0.003
+            if sp.1 > 1 { sp.1 = 0; sp.2 = CGFloat.random(in: -1...1) }
+            let t = sp.1
+            let w = r * 0.9 * (1 - t) + 8 * ws * t
+            sp.0.isHidden = false
+            sp.0.position = CGPoint(x: T.x + (U.x - T.x) * t + sp.2 * w, y: T.y + (U.y - T.y) * t)
+            sp.0.alpha = sin(t * .pi) * 0.9
+            sp.0.color = base.darker(1.6)
+            sp.0.colorBlendFactor = 0.6
+            sparkles[i] = sp
         }
     }
 
@@ -1319,23 +1436,67 @@ final class GameScene: SKScene {
     private func spawnWorld(menu: Bool) {
         let limit = spawnEdge
 
-        // grass tufts and darker ground blotches for a sense of motion
+        // grass, flowers, puddles and dirt patches for a sense of motion
         while nextTuftX < limit {
             let dec = Decal()
             dec.gx = nextTuftX + CGFloat.random(in: 0...30)
             dec.gd = CGFloat.random(in: dMin...(dMax + 0.15))
-            if Int.random(in: 0..<5) == 0 {
-                let e = Art.ell(100, 100, Art.rgb(0.02, 0.18, 0.2, 0.35))
-                dec.addChild(e)
+            let roll = Int.random(in: 0..<100)
+            if roll < 7 {
+                dec.addChild(SKSpriteNode(texture: Painter.puddle(), size: CGSize(width: 100, height: 100)))
                 dec.flat = true
-                dec.worldW = CGFloat.random(in: 40...110)
-                dec.worldD = CGFloat.random(in: 0.04...0.1)
+                dec.worldW = CGFloat.random(in: 50...120)
+                dec.worldD = CGFloat.random(in: 0.04...0.09)
+            } else if roll < 20 {
+                dec.addChild(SKSpriteNode(texture: Painter.dirt(), size: CGSize(width: 100, height: 100)))
+                dec.flat = true
+                dec.worldW = CGFloat.random(in: 50...140)
+                dec.worldD = CGFloat.random(in: 0.04...0.12)
+            } else if roll < 22 && dec.gd < 1.5 {
+                let rk = SKSpriteNode(texture: Painter.rock(), size: CGSize(width: 80, height: 50))
+                rk.anchorPoint = CGPoint(x: 0.5, y: 0.05)
+                rk.setScale(CGFloat.random(in: 0.5...1.0))
+                dec.addChild(rk)
             } else {
                 dec.addChild(Art.tuft())
             }
             world.addChild(dec)
             decals.append(dec)
-            nextTuftX += CGFloat.random(in: 18...40)
+            nextTuftX += CGFloat.random(in: 14...32)
+        }
+        // continuous fences: one along the far edge of the field, one in the foreground
+        while nextFenceX < limit {
+            for d in [CGFloat(1.02), CGFloat(3.25)] {
+                let f = Decal()
+                let sp = SKSpriteNode(texture: Painter.fence(), size: CGSize(width: 96, height: 36))
+                sp.anchorPoint = CGPoint(x: 0.5, y: 0.1)
+                f.addChild(sp)
+                f.gx = nextFenceX
+                f.gd = d
+                world.addChild(f)
+                decals.append(f)
+            }
+            nextFenceX += 92
+        }
+        // farm buildings on the horizon (scenery only)
+        while nextFarX < limit {
+            let kinds: [ObKind] = [.house, .windmill, .silo, .barn, .windmill]
+            let k = kinds.randomElement() ?? .house
+            let f = Decal()
+            f.addChild(Art.obstacle(k))
+            f.gx = nextFarX
+            f.gd = 3.4
+            world.addChild(f)
+            decals.append(f)
+            if k == .silo || k == .windmill, Bool.random() {
+                let g = Decal()
+                g.addChild(Art.obstacle(k == .silo ? .windmill : .silo))
+                g.gx = nextFarX + 70
+                g.gd = 3.38
+                world.addChild(g)
+                decals.append(g)
+            }
+            nextFarX += CGFloat.random(in: 900...1700)
         }
 
         while nextGroupX < limit {
@@ -1651,14 +1812,14 @@ final class GameScene: SKScene {
 
             // walk cycle
             let bob = moving ? abs(sin(clock * 14 + c.wob)) : 0
-            if let legs = c.body.childNode(withName: "legs") { legs.position.y = bob * 1.6 }
+            if let legs = c.body.childNode(withName: ".//legs") { legs.position.y = bob * 1.6 }
             c.body.position.y = c.kind == .dog ? bob * 4 : bob * 1.2
-            if c.kind == .grumpa, let fork = c.body.childNode(withName: "fork") {
+            if c.kind == .grumpa, let fork = c.body.childNode(withName: ".//fork") {
                 fork.zRotation = sin(clock * (moving ? 10 : 3) + c.wob) * 0.25
             }
             if c.kind == .reporter {
                 c.flashTimer -= dt
-                if c.flashTimer <= 0, let fl = c.body.childNode(withName: "//flash") {
+                if c.flashTimer <= 0, let fl = c.body.childNode(withName: ".//flash") {
                     c.flashTimer = CGFloat.random(in: 1.5...3.5)
                     let glow = Art.circ(7, UIColor(white: 1, alpha: 0.95))
                     glow.position = fl.position
@@ -1717,7 +1878,7 @@ final class GameScene: SKScene {
                                  y: T.y + (U.y - T.y) * e + n.liftOffset.y * (1 - t) + sin(t * .pi) * 6 * ws)
             n.setScale(n.liftScale * (1 - 0.55 * t))
             if n is Creature { n.zRotation += (2 + abs(n.spin) * 3) * dt * (n.spin >= 0 ? 1 : -1) }
-            if let c = n as? Creature, let legs = c.body.childNode(withName: "legs") {
+            if let c = n as? Creature, let legs = c.body.childNode(withName: ".//legs") {
                 legs.position.y = abs(sin(clock * 24 + c.wob)) * 2.5   // kicking legs
             }
             if t >= 1 { done.append(n) }
@@ -1829,7 +1990,7 @@ final class GameScene: SKScene {
 
             if o.kind == .tank && playing && status == .play {
                 let flip: CGFloat = (o.children.first?.xScale ?? 1) < 0 ? -1 : 1
-                if let barrel = o.childNode(withName: "//barrel") {
+                if let barrel = o.childNode(withName: ".//barrel") {
                     let dx = U.x - o.position.x, dy = U.y - o.position.y
                     barrel.zRotation = max(0.2, min(2.9, atan2(dy, dx * flip)))
                 }
