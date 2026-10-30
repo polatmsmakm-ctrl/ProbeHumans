@@ -276,6 +276,10 @@ final class GameScene: SKScene {
         if autoplay {
             run(.wait(forDuration: 1.0)) { [weak self] in self?.startGame() }
         }
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-themes"), i + 1 < args.count, let pg = Int(args[i + 1]) {
+            run(.wait(forDuration: 0.5)) { [weak self] in self?.showStore(.ufo, page: pg) }
+        }
     }
 
     private func setUFOArt() {
