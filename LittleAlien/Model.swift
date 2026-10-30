@@ -289,6 +289,8 @@ final class Creature: GroundThing {
     var forkNode: SKNode?
     var flashNode: SKNode?
     var rare = false
+    var facing: CGFloat = 1
+    var noticed = false
     var aimTimer: CGFloat = 2.5
     var aimLine: SKShapeNode?
     var glow: SKNode?

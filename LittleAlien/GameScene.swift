@@ -105,6 +105,14 @@ final class GameScene: SKScene {
     var bats: [SKSpriteNode] = []
     var hearts: [HeartPickup] = []
     var nextHeartAt = 1500
+    /// Only one shooter at a time: after any shot, nobody fires until this runs out.
+    var shotCooldown: CGFloat = 0
+    // lights (beam pool, saucer underglow, police searchlight)
+    let beamLight = SKLightNode()
+    let ufoLight = SKLightNode()
+    let spotLight = SKLightNode()
+    var beamColorNow: UIColor = .white
+    weak var aimingHunter: Creature?
     var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
     let beamDust = SKEmitterNode()
     var haze = SKSpriteNode()
@@ -230,6 +238,9 @@ final class GameScene: SKScene {
         A = H * 0.62
         fieldTop = H * 0.44
         backgroundColor = Art.rgb(0.12, 0.08, 0.25)
+        filter = FX.cinematic ? CinemaFilter() : nil
+        shouldEnableEffects = FX.cinematic
+        shouldRasterize = false
 
         bg.zPosition = -1000
         addChild(bg)
@@ -365,6 +376,9 @@ final class GameScene: SKScene {
         if let i = args.firstIndex(of: "-themes"), i + 1 < args.count, let pg = Int(args[i + 1]) {
             run(.wait(forDuration: 0.5)) { [weak self] in self?.showStore(.ufo, page: pg) }
         }
+        if args.contains("-exportart") {
+            run(.wait(forDuration: 1.0)) { [weak self] in self?.exportArt() }
+        }
         if let i = args.firstIndex(of: "-screen"), i + 1 < args.count {
             let what = args[i + 1]
             run(.wait(forDuration: 0.6)) { [weak self] in
@@ -458,6 +472,7 @@ final class GameScene: SKScene {
         field.zPosition = 5
         bg.addChild(field)
         fieldNode = field
+        field.lightingBitMask = 1
         biome = .farm
 
         // haze where the field meets the hills
@@ -1050,6 +1065,13 @@ final class GameScene: SKScene {
             self.sound.musicOn.toggle()
             self.showSettings()
         }
+        addButton("CINEMATIC FX: \(FX.cinematic ? "ON" : "OFF")", x: 0, y: -H * 0.13, w: 220, h: 34, color: FX.cinematic ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 15) { [weak self] in
+            guard let self = self else { return }
+            FX.cinematic.toggle()
+            self.filter = FX.cinematic ? CinemaFilter() : nil
+            self.shouldEnableEffects = FX.cinematic
+            self.showSettings()
+        }
         addButton("SOUNDS: \(sound.sfxOn ? "ON" : "OFF")", x: 90, y: -H * 0.02, w: 160, h: 36, color: sound.sfxOn ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 16) { [weak self] in
             guard let self = self else { return }
             self.sound.sfxOn.toggle()
@@ -1545,6 +1567,7 @@ final class GameScene: SKScene {
         beamDust.particleSpeedRange = len * 0.3
         beamDust.particlePositionRange = CGVector(dx: r * 1.4, dy: r * 0.4)
         beamDust.particleColor = base.darker(1.5)
+        beamColorNow = base
         drawTwin(base: base)
 
         for i in 0..<sparkles.count {
@@ -1645,6 +1668,19 @@ final class GameScene: SKScene {
             let roll = Int.random(in: 0..<100)
             if roll < 7 && biome != .desert {
                 dec.addChild(SKSpriteNode(texture: Painter.puddle(), size: CGSize(width: 100, height: 100)))
+                let refl = SKSpriteNode(texture: Painter.puddle(), size: CGSize(width: 100, height: 100))
+                refl.name = "refl"
+                refl.blendMode = .add
+                refl.colorBlendFactor = 1
+                refl.alpha = 0.15
+                dec.addChild(refl)
+                let glint = SKSpriteNode(texture: Art.softDot(), size: CGSize(width: 60, height: 14))
+                glint.name = "glint"
+                glint.blendMode = .add
+                glint.alpha = 0.3
+                glint.position = CGPoint(x: -8, y: 6)
+                dec.addChild(glint)
+                dec.name = "puddle"
                 dec.flat = true
                 dec.worldW = CGFloat.random(in: 50...120)
                 dec.worldD = CGFloat.random(in: 0.04...0.09)
@@ -1708,7 +1744,7 @@ final class GameScene: SKScene {
         while nextGroupX < limit {
             spawnGroup(at: nextGroupX)
             let busy = min(1, CGFloat(distance) / 3000)
-            nextGroupX += CGFloat.random(in: 160...300) * (1 - busy * 0.25)
+            nextGroupX += CGFloat.random(in: 250...400) * (1 - busy * 0.2)
         }
 
         if !menu {
@@ -1775,7 +1811,7 @@ final class GameScene: SKScene {
             spawnRareSheep(at: x, d: d)
             return
         }
-        if screen == .playing && distance > 600 && Int.random(in: 0..<100) < 7 {
+        if screen == .playing && distance > 600 && Int.random(in: 0..<100) < 4 {
             spawnCreature(.hunter, variant: 0, x: x, d: d)
             return
         }
@@ -1783,7 +1819,7 @@ final class GameScene: SKScene {
             // a flock of sheep (Boids) — sometimes with a herding dog
             let flock = Flock(x: x, d: d)
             flocks.append(flock)
-            let n = Int.random(in: 3...7)
+            let n = Int.random(in: 2...5)
             for _ in 0..<n {
                 guard let v = pick(.sheep) else { break }
                 let c = spawnCreature(.sheep, variant: v, x: x, d: d)
@@ -2025,6 +2061,7 @@ final class GameScene: SKScene {
                 }
                 moving = c.vx != 0
             }
+            var scared = false
             // flee from the beam (calculateDirectionToBeam)
             if beamActive && c.kind.flees {
                 let fx = c.gx - tX, fd = (c.gd - tD) * 250
@@ -2034,6 +2071,7 @@ final class GameScene: SKScene {
                     c.vx = fx / dist * sp
                     c.vd = fd / dist * sp / 250
                     moving = true
+                    scared = true
                     if c.kind == .grumpa && !c.spoke && Int.random(in: 0..<90) == 0 {
                         c.spoke = true
                         if screen == .playing { sound.grumpa() }
@@ -2042,12 +2080,32 @@ final class GameScene: SKScene {
             }
             c.gx += c.vx * dt
             c.gd = max(dMin + 0.02, min(dMax - 0.04, c.gd + c.vd * dt))
-            if abs(c.vx) > 1 { c.body.xScale = c.vx > 0 ? 1 : -1 }
+            if abs(c.vx) > 1 { c.facing = c.vx > 0 ? 1 : -1 }
 
-            // walk cycle
-            let bob = moving ? abs(sin(clock * 14 + c.wob)) : 0
+            // walk cycle with squash & stretch; scared ones hop, idle animals graze and breathe
+            let phase = clock * (scared ? 22 : 14) + c.wob
+            let bob = moving ? abs(sin(phase)) : 0
             c.legsNode?.position.y = bob * 1.6
-            c.body.position.y = c.kind == .dog ? bob * 4 : bob * 1.2
+            let squash = moving ? sin(phase * 2) * (scared ? 0.09 : 0.05) : sin(clock * 2.2 + c.wob) * 0.02
+            c.body.xScale = c.facing * (1 - squash * 0.5)
+            c.body.yScale = 1 + squash
+            c.body.position.y = c.kind == .dog ? bob * 4 : bob * (scared ? 4 : 1.2)
+            if !moving && (c.kind == .sheep || c.kind == .cow || c.kind == .pig || c.kind == .camel) {
+                c.body.zRotation = -c.facing * 0.05 * (1 + sin(clock * 0.9 + c.wob))
+            } else {
+                c.body.zRotation = scared ? sin(phase) * 0.07 : 0
+            }
+            if scared && !c.noticed && screen == .playing {
+                c.noticed = true
+                let ex = SKLabelNode(fontNamed: UIK.heavyItalic)
+                ex.text = "!"
+                ex.fontSize = 22
+                ex.fontColor = UIK.yellow
+                ex.position = CGPoint(x: 0, y: c.kind == .cow || c.kind == .camel ? 70 : 52)
+                ex.setScale(0.2)
+                c.addChild(ex)
+                ex.run(.sequence([.scale(to: 1.1, duration: 0.12), .scale(to: 1, duration: 0.08), .wait(forDuration: 0.5), .fadeOut(withDuration: 0.25), .removeFromParent()]))
+            }
             if c.kind == .grumpa, let fork = c.forkNode {
                 fork.zRotation = sin(clock * (moving ? 10 : 3) + c.wob) * 0.25
             }
@@ -2119,6 +2177,11 @@ final class GameScene: SKScene {
                                  y: T.y + (U.y - T.y) * e + n.liftOffset.y * (1 - t) + sin(t * .pi) * 6 * ws)
             n.setScale(n.liftScale * (1 - 0.55 * t))
             if n is Creature { n.zRotation += (2 + abs(n.spin) * 3) * dt * (n.spin >= 0 ? 1 : -1) }
+            if let c = n as? Creature {
+                let f = sin(clock * 26 + c.wob)
+                c.body.yScale = 1 + f * 0.08
+                c.body.xScale = c.facing * (1 - f * 0.05)
+            }
             if let c = n as? Creature, let legs = c.legsNode {
                 legs.position.y = abs(sin(clock * 24 + c.wob)) * 2.5   // kicking legs
             }
@@ -2256,8 +2319,9 @@ final class GameScene: SKScene {
                 }
                 if o.position.x > 0 && o.position.x < W {
                     o.fireTimer -= dt
-                    if o.fireTimer <= 0 {
-                        o.fireTimer = o.giant ? CGFloat.random(in: 0.9...1.3) : CGFloat.random(in: 2...3.2)
+                    if o.fireTimer <= 0 && (o.giant || (shotCooldown <= 0 && aimingHunter == nil)) {
+                        o.fireTimer = o.giant ? CGFloat.random(in: 2.2...3.0) : CGFloat.random(in: 3...4.5)
+                        if !o.giant { shotCooldown = CGFloat.random(in: 5...7) }
                         fireMissile(from: o)
                     }
                 }

@@ -69,6 +69,7 @@ enum Art {
     static func block(_ w: CGFloat, _ h: CGFloat, _ c: UIColor, _ x: CGFloat = 0, _ y: CGFloat = 0) -> SKSpriteNode {
         let s = SKSpriteNode(color: c, size: CGSize(width: w, height: h))
         s.position = CGPoint(x: x, y: y)
+        s.lightingBitMask = 1
         return s
     }
 
@@ -82,7 +83,7 @@ enum Art {
 
     static func ufo(theme: UFOTheme) -> SKNode {
         let n = SKNode()
-        let s = Painter.sprite(Painter.ufo(theme: theme), canvas: Painter.ufoCanvas, foot: Painter.ufoFoot)
+        let s = Painter.sprite(Painter.ufo(theme: theme), canvas: Painter.ufoCanvas, foot: Painter.ufoFoot, lit: false)
         n.addChild(s)
         // pulsing emitter light
         let glow = SKSpriteNode(texture: Painter.landing())
@@ -331,6 +332,7 @@ enum Art {
     static func tuft() -> SKNode {
         let s = SKSpriteNode(texture: Painter.tuft(Int.random(in: 0..<3)), size: CGSize(width: 22, height: 16))
         s.anchorPoint = CGPoint(x: 0.5, y: 0)
+        s.lightingBitMask = 1
         return s
     }
 

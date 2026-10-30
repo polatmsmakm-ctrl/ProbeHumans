@@ -108,7 +108,51 @@ extension GameScene {
         bossLabel = UIK.label("", size: 18, color: Art.rgb(1, 0.4, 0.4), font: UIK.heavyItalic, y: H / 2 - 120)
         hud.addChild(bossLabel)
 
+        // lights: the beam lights up a pool on the field, the saucer glows from below
+        for l in [beamLight, ufoLight, spotLight] {
+            l.removeFromParent()
+            l.categoryBitMask = 1
+            l.shadowColor = .clear
+            addChild(l)
+        }
+        beamLight.falloff = 1.6
+        beamLight.ambientColor = Art.rgb(0.6, 0.63, 0.78)
+        ufoLight.falloff = 2.6
+        ufoLight.ambientColor = .black
+        spotLight.falloff = 2.2
+        spotLight.ambientColor = .black
+        spotLight.lightColor = .black
+
         applyWorldLook()
+    }
+
+    /// Light positions/colours follow the beam every frame.
+    func updateLights() {
+        let on = beamVisible
+        beamLight.position = beamPt
+        beamLight.lightColor = on ? beamColorNow.darker(1.4) : .black
+        ufoLight.position = CGPoint(x: ufo.position.x, y: ufo.position.y - 40 * ufoScale)
+        ufoLight.lightColor = store.currentTheme.neon.withAlphaComponent(0.6)
+        if let spot = searchLight {
+            spotLight.position = spot.position
+            spotLight.lightColor = Art.rgb(1, 0.95, 0.75)
+        } else {
+            spotLight.lightColor = .black
+        }
+    }
+
+    /// Puddles reflect the beam when it is close and shimmer under the moon.
+    func updatePuddles() {
+        for d in decals where d.name == "puddle" {
+            guard let refl = d.childNode(withName: "refl") as? SKSpriteNode else { continue }
+            let dist = hypot(d.position.x - beamPt.x, (d.position.y - beamPt.y) * 2)
+            let near = beamVisible ? max(0, 1 - dist / (W * 0.25)) : 0
+            refl.color = beamColorNow
+            refl.alpha = 0.12 + near * 0.95
+            if let g = d.childNode(withName: "glint") {
+                g.alpha = 0.18 + 0.15 * sin(clock * 2.5 + d.gx * 0.05) + near * 0.4
+            }
+        }
     }
 
     func resetExtras() {
@@ -137,6 +181,8 @@ extension GameScene {
         setText(bossLabel, "")
         lastHitDistance = 0
         lastMissionTick = 0
+        shotCooldown = 6
+        aimingHunter = nil
         nextHeartAt = 1500
         dawnNode.alpha = 0
         slowTint.alpha = 0
@@ -159,7 +205,10 @@ extension GameScene {
         updateBoss(dt)
         updateBats(dt)
         updateHearts()
+        updateLights()
+        updatePuddles()
         if spottedCooldown > 0 { spottedCooldown -= dt }
+        if shotCooldown > 0 { shotCooldown -= dt }
 
         // dawn slowly breaks the longer you fly
         dawnNode.alpha = max(0, min(0.6, CGFloat(distance - 4000) / 7000))
@@ -278,6 +327,7 @@ extension GameScene {
         }
         c.aimLine?.removeFromParent()
         c.aimLine = nil
+        if aimingHunter === c { aimingHunter = nil }
         // MEGA PROBE: 5+ grabs inside 2 seconds
         grabTimes.append(clock)
         grabTimes.removeAll { clock - $0 > 2 }
@@ -382,10 +432,18 @@ extension GameScene {
 
     func updateHunter(_ c: Creature, _ dt: CGFloat) {
         let x = c.position.x
-        c.body.xScale = ufo.position.x > x ? 1 : -1
+        c.facing = ufo.position.x > x ? 1 : -1
+        c.body.xScale = c.facing
         guard screen == .playing, status == .play, x > W * 0.05, x < W * 0.95 else {
             c.aimLine?.removeFromParent()
             c.aimLine = nil
+            if aimingHunter === c { aimingHunter = nil }
+            return
+        }
+        // only one hunter aims at a time, and only when nobody fired recently
+        if aimingHunter == nil && shotCooldown <= 0 && c.aimTimer < 1.3 { aimingHunter = c }
+        if aimingHunter !== c && c.aimTimer < 1.3 {
+            c.aimTimer = 1.4
             return
         }
         c.aimTimer -= dt
@@ -408,10 +466,13 @@ extension GameScene {
             c.aimLine?.alpha = Int(clock * 10) % 2 == 0 ? 1 : 0.3
         }
         if c.aimTimer <= 0 {
-            c.aimTimer = CGFloat.random(in: 3...4)
+            c.aimTimer = CGFloat.random(in: 5...7)
+            aimingHunter = nil
+            shotCooldown = CGFloat.random(in: 5...7)
             c.aimLine?.removeFromParent()
             c.aimLine = nil
             shoot(from: muzzle, speed: 620 * ws, big: false)
+            c.body.run(.sequence([.moveBy(x: -4 * c.facing, y: 0, duration: 0.05), .moveBy(x: 4 * c.facing, y: 0, duration: 0.15)]))
             sound.play("shot")
         }
     }
@@ -655,7 +716,7 @@ extension GameScene {
             h.zRotation = sin(clock * 1.3) * 0.05
             bossFireIn -= dt
             if bossFireIn <= 0 && status == .play {
-                bossFireIn = CGFloat.random(in: 1.2...1.7)
+                bossFireIn = CGFloat.random(in: 2.6...3.6)
                 shoot(from: CGPoint(x: h.position.x - 50 * ws, y: h.position.y - 14 * ws), speed: 330 * ws, big: true)
                 sound.play("missile", volume: 0.7)
             }
@@ -746,6 +807,8 @@ extension GameScene {
                     flashNode.run(.sequence([.fadeAlpha(to: 0.7, duration: 0.05), .fadeAlpha(to: 0.1, duration: 0.08),
                                              .fadeAlpha(to: 0.5, duration: 0.05), .fadeOut(withDuration: 0.35)]))
                     run(.wait(forDuration: 0.35)) { [weak self] in self?.sound.play("thunder", volume: 0.9) }
+                    beamLight.ambientColor = Art.rgb(1, 1, 1)
+                    run(.wait(forDuration: 0.2)) { [weak self] in self?.beamLight.ambientColor = Art.rgb(0.6, 0.63, 0.78) }
                 }
             }
             if rainLeft <= 0 {
@@ -800,6 +863,7 @@ extension GameScene {
         nf.anchorPoint = .zero
         nf.zPosition = 5
         nf.alpha = a0
+        nf.lightingBitMask = 1
         if winter && b != .desert { nf.color = Art.rgb(0.85, 0.92, 1); nf.colorBlendFactor = 0.55 }
         bg.addChild(nf)
         swap(fieldNode.map { [$0] } ?? [], [nf])
@@ -910,7 +974,7 @@ extension GameScene {
         let r = Int.random(in: 0..<100)
         if r < 3 { spawnRareSheep(at: x, d: d); return }
         if r < 50 {
-            for i in 0..<Int.random(in: 2...4) { spawnCreature(.citizen, variant: 0, x: x + CGFloat(i) * 28, d: d + CGFloat.random(in: -0.1...0.1)) }
+            for i in 0..<Int.random(in: 1...3) { spawnCreature(.citizen, variant: 0, x: x + CGFloat(i) * 28, d: d + CGFloat.random(in: -0.1...0.1)) }
         } else if r < 65 {
             spawnCreature(.reporter, variant: 0, x: x, d: d)
             spawnCreature(.citizen, variant: 0, x: x + 30, d: d)
@@ -934,7 +998,7 @@ extension GameScene {
         } else if r < 70 {
             let flock = Flock(x: x, d: d)
             flocks.append(flock)
-            for _ in 0..<Int.random(in: 3...6) {
+            for _ in 0..<Int.random(in: 2...4) {
                 let c = spawnCreature(.sheep, variant: 0, x: x, d: d)
                 c.flock = flock
                 c.offX = CGFloat.random(in: -45...45)
@@ -1226,5 +1290,25 @@ extension GameScene {
     func rebuildForWorld() {
         setup()
         showStore(.worlds)
+    }
+
+    // MARK: - Art templates
+
+    /// Paints every texture once and saves them as PNGs (Documents/art) to use as templates
+    /// for replacing the code-drawn art with professional artwork.
+    func exportArt() {
+        let kinds: [Kind] = [.sheep, .cow, .pig, .grumpa, .farmer, .dog, .fireman, .soldier, .reporter, .hunter, .camel, .bedouin, .citizen]
+        for k in kinds { for v in 0..<4 { _ = Art.creature(k, variant: v) } }
+        let obs: [ObKind] = [.fence, .shed, .barrels, .car, .police, .jeep, .truck, .windmill, .silo, .house, .fireTruck, .barn, .tank,
+                             .powerline, .building, .lamp, .hydrant, .tent, .palm]
+        for o in obs { for _ in 0..<5 { _ = Art.obstacle(o) } }
+        for t in UFOTheme.all { _ = Art.ufo(theme: t) }
+        for p in PowerType.allCases { _ = Art.capsule(p) }
+        _ = Painter.heart(); _ = Painter.pumpkin(); _ = Painter.bat(); _ = Painter.duster(); _ = Painter.helicopter()
+        _ = Painter.rotor(); _ = Painter.rock(); _ = Painter.puddle(); _ = Painter.dirt(); _ = Painter.signBoard()
+        for v in 0..<3 { _ = Painter.tuft(v); _ = Painter.building(v) }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("art")
+        let n = Painter.exportAll(to: docs)
+        popupHUD("Exported \(n) art templates", color: UIK.yellow)
     }
 }

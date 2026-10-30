@@ -13,8 +13,20 @@ enum Painter {
     static let hi: CGFloat = min(6, UIScreen.main.scale * 2)
     private static let cs = CGColorSpaceCreateDeviceRGB()
 
+    /// File name used for art overrides and exports: the key without any screen-size suffix.
+    static func artName(_ key: String) -> String {
+        return key.replacingOccurrences(of: "_?[0-9]+x[0-9]+$", with: "", options: .regularExpression)
+    }
+
     static func texture(_ key: String, _ size: CGSize, scale: CGFloat = Painter.hi, _ draw: (CGContext, CGSize) -> Void) -> SKTexture {
         if let t = cache[key] { return t }
+        // Professional art: a PNG named art_<name>.png in the app replaces the painted version.
+        if let img = UIImage(named: "art_" + artName(key)) {
+            let t = SKTexture(image: img)
+            t.filteringMode = .linear
+            cache[key] = t
+            return t
+        }
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = scale
         fmt.opaque = false
@@ -31,10 +43,43 @@ enum Painter {
     }
 
     /// Sprite whose anchor sits at `foot` (in canvas points).
-    static func sprite(_ tex: SKTexture, canvas: CGSize, foot: CGPoint) -> SKSpriteNode {
+    private static var normals: [ObjectIdentifier: SKTexture] = [:]
+
+    /// Normal map made from the painted texture so the sprite reacts to the beam light.
+    static func normalMap(_ tex: SKTexture) -> SKTexture {
+        let id = ObjectIdentifier(tex)
+        if let n = normals[id] { return n }
+        let n = tex.generatingNormalMap(withSmoothness: 0.35, contrast: 1.4)
+        normals[id] = n
+        return n
+    }
+
+    static func sprite(_ tex: SKTexture, canvas: CGSize, foot: CGPoint, lit: Bool = true) -> SKSpriteNode {
         let s = SKSpriteNode(texture: tex, size: canvas)
         s.anchorPoint = CGPoint(x: foot.x / canvas.width, y: foot.y / canvas.height)
+        if lit {
+            s.lightingBitMask = 1
+            s.normalTexture = normalMap(tex)
+        }
         return s
+    }
+
+    /// Writes every painted texture as PNG (templates for replacing them with real artwork).
+    static func exportAll(to dir: URL) -> Int {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var n = 0
+        var lines = ["file,width_pt,height_pt"]
+        for (key, tex) in cache {
+            let name = "art_" + artName(key)
+            let img = UIImage(cgImage: tex.cgImage())
+            if let data = img.pngData() {
+                try? data.write(to: dir.appendingPathComponent(name + ".png"))
+                lines.append("\(name).png,\(Int(tex.size().width)),\(Int(tex.size().height))")
+                n += 1
+            }
+        }
+        try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("sizes.csv"), atomically: true, encoding: .utf8)
+        return n
     }
 
     // MARK: Helpers
