@@ -17,6 +17,33 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Make old-man voice lines (macOS voices)
+        continue-on-error: true
+        run: |
+          set +e
+          VOICE=""
+          for v in Ralph Fred Albert Daniel; do
+            if say -v "$v" "test" -o /tmp/vtest.aiff 2>/dev/null; then VOICE="$v"; break; fi
+          done
+          echo "voice: $VOICE"
+          [ -z "$VOICE" ] && exit 0
+          i=1
+          while IFS= read -r line; do
+            say -v "$VOICE" -r 165 "[[pbas 28]] $line" -o "/tmp/g$i.aiff" < /dev/null && \
+              afconvert -f WAVE -d LEI16@22050 -c 1 "/tmp/g$i.aiff" "LittleAlien/Sounds/grumpa_$i.wav"
+            i=$((i+1))
+          done <<'EOF'
+          Hey! Put me down!
+          Darn aliens!
+          Not again!
+          Whoa! Get your beam off my farm!
+          Help! Somebody call the sheriff!
+          Why you little...
+          My back! My back!
+          I'll get my pitchfork!
+          EOF
+          ls -la LittleAlien/Sounds
+
       - name: Generate Xcode project
         run: xcodegen generate
 
