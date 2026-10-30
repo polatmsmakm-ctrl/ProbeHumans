@@ -676,7 +676,7 @@ final class GameScene: SKScene {
         }
         if let heart = hud.childNode(withName: "heart") as? SKLabelNode {
             heart.fontColor = (health <= 1 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : .white
-            let ht = secondChance ? "♥" : "♡"
+            let ht = Cheats.invincible ? "∞" : (secondChance ? "♥" : "♡")
             if heart.text != ht { heart.text = ht }
         }
 
@@ -707,6 +707,9 @@ final class GameScene: SKScene {
         } else if status == .boost {
             setText(powerLabel, "HEAD START!")
             powerLabel.fontColor = UIK.yellow
+        } else if Cheats.on && screen == .playing {
+            setText(powerLabel, "CHEATS ON")
+            powerLabel.fontColor = UIK.red
         } else {
             setText(powerLabel, "")
         }
@@ -1050,6 +1053,8 @@ final class GameScene: SKScene {
         overlay.addChild(UIK.label("OPTIONS", size: 26, color: UIK.cyan, y: H / 2 - 44))
         addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showMenu() }
 
+        addButton("CHEAT MODE", x: min(W - 40, 560) / 2 - 90, y: H / 2 - 44, w: 140, h: 30,
+                  color: Cheats.on ? UIK.red : Art.rgb(0.3, 0.25, 0.55), fontSize: 14) { [weak self] in self?.showCheats() }
         let sense = store.d.touchSense
         overlay.addChild(UIK.label("Beam sensitivity  \(String(format: "%.1f", sense))", size: 18, y: H * 0.22))
         addButton("−", x: -60, y: H * 0.11, w: 54, h: 38, fontSize: 24, enabled: sense > 0.51) { [weak self] in
@@ -1416,7 +1421,7 @@ final class GameScene: SKScene {
                 nextSpeedBanner += 1000
                 banner("SPEED UP!")
             }
-            curSpeed = moveSpeed + streakSpeed
+            curSpeed = (moveSpeed + streakSpeed) * Cheats.speedFactor
         case .boost:
             curSpeed += (Tuning.boostSpeed - curSpeed) * min(1, dt * 3)
             if CGFloat(distance) >= boostUntil {
@@ -2168,6 +2173,8 @@ final class GameScene: SKScene {
                 dur = 0.55 + c.kind.weight * 0.12
             } else if n is Coin {
                 dur = 0.35
+            } else if n is Obstacle {
+                dur = 0.9
             } else {
                 dur = 0.5
             }
@@ -2215,6 +2222,16 @@ final class GameScene: SKScene {
             missionDone(store.mission(.coins, add: 1))
             bumpStreak()
             sound.play("coin", volume: 0.55, minGap: 0.05)
+        } else if let o = n as? Obstacle {
+            obstacles.removeAll { $0 === o }
+            o.wire?.removeFromParent()
+            guard screen == .playing else { return }
+            let pts = 50 * multiplier
+            score += pts
+            scorePopup(pts, at: CGPoint(x: U.x + 18 * ws, y: U.y - 6 * ws))
+            if o.kind.isVehicle { store.d.vehiclesDestroyed += 1 }
+            if o.kind == .tank { store.d.tanksDestroyed += 1 }
+            sound.play("collect", volume: 0.7, minGap: 0.08)
         } else if let h = n as? HeartPickup {
             hearts.removeAll { $0 === h }
             guard screen == .playing else { return }
@@ -2295,7 +2312,7 @@ final class GameScene: SKScene {
 
     func updateObstacles(_ dt: CGFloat, playing: Bool) {
         let U = ufoBottom
-        for o in obstacles where !o.dead {
+        for o in obstacles where !o.dead && !o.lifting {
             if o.hitCooldown > 0 { o.hitCooldown -= dt }
             if o.kind.isVehicle && o.vx != 0 {
                 o.gx += o.vx * dt
@@ -2339,7 +2356,7 @@ final class GameScene: SKScene {
         let U = ufoBottom
         let tD = depth(atY: T.y)
         let r = beamRadiusWorld * sc(tD)
-        for o in obstacles where !o.dead && o.hitCooldown <= 0 {
+        for o in obstacles where !o.dead && !o.lifting && o.hitCooldown <= 0 {
             if o.kind == .powerline && o.span > 0 && beamCrossesWire(o, U: U, T: T, tD: tD) {
                 if invincible <= 0 && damageTimer <= 0 {
                     o.hitCooldown = 1.5
@@ -2492,6 +2509,7 @@ final class GameScene: SKScene {
     func takeDamage(_ amount: Int, byVehicle: Bool) {
         guard status == .play || status == .boost else { return }
         if invincible > 0 || damageTimer > 0 { return }
+        if Cheats.invincible { return }
         if power == .shield {
             power = nil
             powerTimer = 0
@@ -2603,6 +2621,7 @@ final class GameScene: SKScene {
         }
         flocks.removeAll { f in !creatures.contains { $0.flock === f } }
         obstacles.removeAll { o in
+            if o.lifting { return false }
             let x = sx(o.gx, o.gd)
             if o.vx > 0 {
                 // cars entering from the left start off-screen; drop them once they leave on the right

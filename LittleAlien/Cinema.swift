@@ -38,3 +38,30 @@ enum FX {
         set { UserDefaults.standard.set(newValue, forKey: "fxCinematic") }
     }
 }
+
+/// Cheat mode (Options → CHEAT MODE).
+enum Cheats {
+    private static let d = UserDefaults.standard
+    static let speeds: [Double] = [0.5, 1, 1.5, 2, 3, 4, 5, 7, 10]
+
+    static var on: Bool {
+        get { d.object(forKey: "cheatOn") as? Bool ?? false }
+        set { d.set(newValue, forKey: "cheatOn") }
+    }
+    static var speed: Double {
+        get { d.object(forKey: "cheatSpeed") as? Double ?? 2 }
+        set { d.set(newValue, forKey: "cheatSpeed") }
+    }
+    static var god: Bool {
+        get { d.object(forKey: "cheatGod") as? Bool ?? true }
+        set { d.set(newValue, forKey: "cheatGod") }
+    }
+    static var suckAll: Bool {
+        get { d.object(forKey: "cheatSuck") as? Bool ?? true }
+        set { d.set(newValue, forKey: "cheatSuck") }
+    }
+
+    static var speedFactor: CGFloat { return on ? CGFloat(speed) : 1 }
+    static var invincible: Bool { return on && god }
+    static var vacuum: Bool { return on && suckAll }
+}

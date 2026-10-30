@@ -234,6 +234,7 @@ extension GameScene {
         updateBoss(dt)
         updateBats(dt)
         updateHearts()
+        cheatVacuum()
         updateLights()
         updatePuddles()
         if spottedCooldown > 0 { spottedCooldown -= dt }
@@ -1339,5 +1340,75 @@ extension GameScene {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("art")
         let n = Painter.exportAll(to: docs)
         popupHUD("Exported \(n) art templates", color: UIK.yellow)
+    }
+
+    // MARK: - Cheat mode
+
+    /// "Suck everything": the beam pulls in everything on screen — coins, animals, people,
+    /// power-ups, hearts and even cars and buildings (a few per frame so it stays smooth).
+    func cheatVacuum() {
+        guard Cheats.vacuum, screen == .playing, status == .play else { return }
+        var budget = 4
+        func onScreen(_ g: GroundThing) -> Bool {
+            let x = sx(g.gx, g.gd)
+            return x > -20 && x < W * 0.97
+        }
+        for c in coins where budget > 0 && !c.lifting && onScreen(c) { startLift(c); budget -= 1 }
+        for c in creatures where budget > 0 && !c.lifting && onScreen(c) {
+            startLift(c)
+            registerGrab(c)
+            switch c.kind {
+            case .sheep: sound.creature(.sheep)
+            case .cow, .camel: sound.creature(.cow)
+            case .pig: sound.creature(.pig)
+            case .dog: sound.creature(.dog)
+            default: sound.creature(.oldMan)
+            }
+            budget -= 1
+        }
+        for p in pickups where budget > 0 && !p.lifting && onScreen(p) { startLift(p); budget -= 1 }
+        for h in hearts where budget > 0 && !h.lifting && onScreen(h) { startLift(h); budget -= 1 }
+        if budget > 0, let o = obstacles.first(where: { !$0.dead && !$0.lifting && $0.kind != .powerline && !$0.giant && onScreen($0) }) {
+            startLift(o)
+            sound.laserGrab()
+        }
+    }
+
+    func showCheats() {
+        screen = .settings
+        newOverlay(dim: 0.3)
+        let pw = min(W - 40, 560)
+        overlay.addChild(UIK.panel(pw, H - 40, y: -6))
+        overlay.addChild(UIK.label("CHEAT MODE", size: 26, color: UIK.red, y: H / 2 - 44))
+        addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showSettings() }
+        let on = Cheats.on
+        addButton(on ? "CHEATS: ON" : "CHEATS: OFF", x: 0, y: H * 0.25, w: 240, h: 40, color: on ? UIK.red : UIColor(white: 0.4, alpha: 1), fontSize: 18) { [weak self] in
+            Cheats.on.toggle()
+            self?.showCheats()
+        }
+        // speed picker
+        let sp = Cheats.speed
+        let idx = Cheats.speeds.firstIndex(of: sp) ?? 3
+        overlay.addChild(UIK.label("Saucer speed  x\(sp == sp.rounded() ? String(Int(sp)) : String(sp))", size: 18, color: on ? .white : UIColor(white: 1, alpha: 0.5), y: H * 0.12))
+        addButton("−", x: -110, y: H * 0.12, w: 50, h: 36, fontSize: 24, enabled: idx > 0) { [weak self] in
+            Cheats.speed = Cheats.speeds[max(0, idx - 1)]
+            self?.showCheats()
+        }
+        addButton("+", x: 110, y: H * 0.12, w: 50, h: 36, fontSize: 24, enabled: idx < Cheats.speeds.count - 1) { [weak self] in
+            Cheats.speed = Cheats.speeds[min(Cheats.speeds.count - 1, idx + 1)]
+            self?.showCheats()
+        }
+        addButton("INFINITE HEALTH: \(Cheats.god ? "ON" : "OFF")", x: 0, y: -H * 0.02, w: 280, h: 36,
+                  color: Cheats.god ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 15) { [weak self] in
+            Cheats.god.toggle()
+            self?.showCheats()
+        }
+        addButton("SUCK EVERYTHING: \(Cheats.suckAll ? "ON" : "OFF")", x: 0, y: -H * 0.14, w: 280, h: 36,
+                  color: Cheats.suckAll ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 15) { [weak self] in
+            Cheats.suckAll.toggle()
+            self?.showCheats()
+        }
+        overlay.addChild(UIK.label(on ? "Cheats are active in your next run" : "Turn cheats on to use these", size: 12,
+                                   color: UIColor(white: 1, alpha: 0.6), y: -H * 0.27, shadow: nil))
     }
 }
