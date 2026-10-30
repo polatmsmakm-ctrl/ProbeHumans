@@ -203,8 +203,9 @@ final class GameScene: SKScene {
     var nextPickupX: CGFloat = 0
     var nextTuftX: CGFloat = 0
     var nextSign = Tuning.signEvery
-    /// Blue street signs along the road (all maps), every 700 m starting at 250 m.
-    var nextRoadSign = 250
+    /// Blue street signs along the road (all maps): one area every 200 m, starting at 150 m
+    /// (150 + 200·k never lands on the 500 m distance boards).
+    var nextRoadSign = 150
     var roadSignIndex = 0
     var pendingSigns: [(CGFloat, [String])] = []
 
@@ -416,6 +417,7 @@ final class GameScene: SKScene {
                 self.nextCoinX = self.camX + 200
                 self.nextSign = (m / Tuning.signEvery + 1) * Tuning.signEvery
                 self.nextRoadSign = m + 150
+                self.roadSignIndex = 0
                 self.nextBossAt = m + 3000
                 self.nextWeatherAt = m + 400
             }
@@ -1187,8 +1189,8 @@ final class GameScene: SKScene {
         nextFarX = camX - 300
         nextSign = Tuning.signEvery
         pendingSigns = []
-        nextRoadSign = 250
-        roadSignIndex = Int.random(in: 0..<Art.roadSignCount)
+        nextRoadSign = 150
+        roadSignIndex = 0
         spawnWorld(menu: true)
     }
 
@@ -1844,7 +1846,7 @@ final class GameScene: SKScene {
                 dec.gd = 3.0
                 world.addChild(dec)
                 decals.append(dec)
-                nextRoadSign += 700
+                nextRoadSign += 200
             }
             var keep: [(CGFloat, [String])] = []
             for s in pendingSigns {

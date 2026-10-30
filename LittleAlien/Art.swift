@@ -334,12 +334,13 @@ enum Art {
     static func roadSign(_ i: Int) -> SKNode {
         let n = SKNode()
         let tex: SKTexture
+        // order along the road: Kuwait City → West Abdullah Mubarak → Ardiya → Jordan St. → Beirut St. → again
         switch i % roadSignCount {
         case 0: tex = Painter.roadSignImage("road_kuwait") ?? Painter.streetSign("kuwait", arabic: "مدينة الكويت", english: "Kuwait City", arrowLeft: false)
-        case 1: tex = Painter.streetSign("jordan", arabic: "شارع الأردن", english: "Jordan Street", arrowLeft: false)
-        case 2: tex = Painter.roadSignImage("road_abdullah") ?? Painter.streetSign("abdullah", arabic: "عبدالله المبارك", english: "Abdullah Mubarak", arrowLeft: true)
-        case 3: tex = Painter.streetSign("beirut", arabic: "شارع بيروت", english: "Beirut Street", arrowLeft: true)
-        default: tex = Painter.roadSignImage("road_ardiya") ?? Painter.streetSign("ardiya", arabic: "العارضية", english: "Ardiya", arrowLeft: false)
+        case 1: tex = Painter.streetSign("westabdullah", arabic: "غرب عبدالله المبارك", english: "West Abdullah Mubarak", arrowLeft: true)
+        case 2: tex = Painter.roadSignImage("road_ardiya") ?? Painter.streetSign("ardiya", arabic: "العارضية", english: "Ardiya", arrowLeft: false)
+        case 3: tex = Painter.streetSign("jordan", arabic: "شارع الأردن", english: "Jordan Street", arrowLeft: false)
+        default: tex = Painter.streetSign("beirut", arabic: "شارع بيروت", english: "Beirut Street", arrowLeft: true)
         }
         let pw: CGFloat = 176
         let ph = pw * tex.size().height / max(1, tex.size().width)
