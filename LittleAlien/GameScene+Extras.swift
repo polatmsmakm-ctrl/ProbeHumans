@@ -1445,6 +1445,32 @@ extension GameScene {
                                    size: 12, color: UIColor(white: 1, alpha: 0.6), y: -H / 2 + 30, shadow: nil))
     }
 
+    /// Cheat mode is locked behind the developer password.
+    func askCheatPassword() {
+        if Cheats.unlocked { showCheats(); return }
+        guard var vc = view?.window?.rootViewController else { return }
+        while let p = vc.presentedViewController { vc = p }
+        let a = UIAlertController(title: "Developer password", message: "Enter the password to open cheat mode", preferredStyle: .alert)
+        a.addTextField { tf in
+            tf.placeholder = "Password"
+            tf.isSecureTextEntry = true
+            tf.autocorrectionType = .no
+        }
+        a.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        a.addAction(UIAlertAction(title: "Open", style: .default) { [weak self, weak a] _ in
+            guard let self = self else { return }
+            let pw = (a?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if pw == Cheats.password {
+                Cheats.unlocked = true
+                self.showCheats()
+            } else {
+                self.sound.play("hit", volume: 0.6)
+                self.popupHUD("Wrong password", color: UIK.red)
+            }
+        })
+        vc.present(a, animated: true)
+    }
+
     func showCheats() {
         screen = .settings
         newOverlay(dim: 0.3)

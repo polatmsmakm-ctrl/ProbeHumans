@@ -76,7 +76,7 @@ enum Tuning {
     static let streakWindow: CGFloat = 6
 
     // UFO tiers 0...3
-    static let ufoHealth: [Int] = [3, 4, 4, 5]
+    static let ufoHealth: [Int] = [4, 5, 5, 6]   // hearts (upgrades add more)
     static let ufoTierCost: [Int] = [1000, 5000, 7500]
     static let ufoBuyCost: [Int] = [0, 10000, 15000, 20000, 25000]
 

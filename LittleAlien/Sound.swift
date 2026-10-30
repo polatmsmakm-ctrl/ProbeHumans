@@ -19,6 +19,22 @@ final class Sound {
         get { UserDefaults.standard.object(forKey: "sfxOn") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "sfxOn") }
     }
+    /// 0...1, set with the bars in Options.
+    var sfxVolume: Float {
+        get { UserDefaults.standard.object(forKey: "sfxVolume") as? Float ?? 1 }
+        set { UserDefaults.standard.set(max(0, min(1, newValue)), forKey: "sfxVolume") }
+    }
+    var musicVolume: Float {
+        get { UserDefaults.standard.object(forKey: "musicVolume") as? Float ?? 1 }
+        set {
+            UserDefaults.standard.set(max(0, min(1, newValue)), forKey: "musicVolume")
+            let v = musicBase * musicVolume
+            let p = music
+            audioQ.async { p?.volume = v }
+        }
+    }
+    private var musicBase: Float = 0.5
+
     var musicOn: Bool {
         get { UserDefaults.standard.object(forKey: "musicOn") as? Bool ?? true }
         set {
@@ -93,7 +109,8 @@ final class Sound {
 
     /// minGap stops the same sound from stacking up too many times per second.
     func play(_ name: String, volume: Float = 1, rate: Float = 1, minGap: TimeInterval = 0.04) {
-        guard sfxOn, let pool = pools[name] else { return }
+        guard sfxOn, sfxVolume > 0.001, let pool = pools[name] else { return }
+        let volume = volume * sfxVolume
         let now = CACurrentMediaTime()
         if let last = lastPlay[name], now - last < minGap { return }
         lastPlay[name] = now
@@ -188,7 +205,8 @@ final class Sound {
             ?? Bundle.main.url(forResource: file, withExtension: "mp3")
         guard let u = url, let p = try? AVAudioPlayer(contentsOf: u) else { return }
         p.numberOfLoops = -1
-        p.volume = file == "u_theme" ? 0.6 : 0.45
+        musicBase = file == "u_theme" ? 0.6 : 0.45
+        p.volume = musicBase * musicVolume
         p.play()
         music = p
     }

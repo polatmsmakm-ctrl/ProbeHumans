@@ -43,6 +43,9 @@ enum FX {
 enum Cheats {
     private static let d = UserDefaults.standard
     static let speeds: [Double] = [0.5, 1, 1.5, 2, 3, 4, 5, 7, 10]
+    static let password = "Bloom"
+    /// Unlocked with the password until the app is closed.
+    static var unlocked = false
 
     static var on: Bool {
         get { d.object(forKey: "cheatOn") as? Bool ?? false }

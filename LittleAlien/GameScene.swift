@@ -165,8 +165,9 @@ final class GameScene: SKScene {
     var nextSpeedBanner = 1000
     var score = 0
     var runCoins = 0
-    var health = 3
-    var maxHealth = 3
+    /// Health is counted in HALF hearts: a crash costs 1 (half a heart), a shot costs 2 (a whole heart).
+    var health = 8
+    var maxHealth = 8
     var level = 0
     var collectedStreak = 0
     var sinceCollect: CGFloat = 0
@@ -642,10 +643,19 @@ final class GameScene: SKScene {
         let hs = min(1.25, max(0.85, H / 390))
         let segW: CGFloat = 30 * hs, segH: CGFloat = 8 * hs
         let x0 = -64 * hs + 25 * hs + 38 * hs
-        for i in 0..<max(3, maxHealth) {
+        for i in 0..<max(4, maxHealth / 2) {
             let s = SKShapeNode(rectOf: CGSize(width: segW, height: segH), cornerRadius: segH / 2)
             s.position = CGPoint(x: x0 + CGFloat(i) * (segW + 5 * hs) + segW / 2, y: top - 14 * hs)
             s.lineWidth = 1.2
+            // left half, shown when only half of this heart is left
+            let half = SKShapeNode(rectOf: CGSize(width: segW / 2, height: segH), cornerRadius: segH / 2)
+            half.position = CGPoint(x: -segW / 4, y: 0)
+            half.fillColor = Art.rgb(0.45, 0.82, 1)
+            half.strokeColor = .clear
+            half.glowWidth = 1.5
+            half.name = "half"
+            half.isHidden = true
+            s.addChild(half)
             hud.addChild(s)
             healthBars.append(s)
         }
@@ -667,16 +677,18 @@ final class GameScene: SKScene {
         shownHealth = health
         shownMax = maxHealth
         for (i, b) in healthBars.enumerated() {
-            if i >= maxHealth { b.isHidden = true; continue }
+            if i >= maxHealth / 2 { b.isHidden = true; continue }
             b.isHidden = false
-            let full = i < health
+            let left = health - i * 2          // 2 = full heart, 1 = half, 0 = empty
+            let full = left >= 2
+            b.childNode(withName: "half")?.isHidden = left != 1
             b.fillColor = full ? Art.rgb(0.45, 0.82, 1) : Art.rgb(0.05, 0.08, 0.16, 0.8)
             b.strokeColor = full ? Art.rgb(0.8, 0.95, 1, 0.9) : Art.rgb(0.25, 0.4, 0.6, 0.8)
             b.glowWidth = full ? 1.5 : 0
         }
         }
         if let heart = hud.childNode(withName: "heart") as? SKLabelNode {
-            heart.fontColor = (health <= 1 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : .white
+            heart.fontColor = (health <= 2 && Int(clock * 4) % 2 == 0) ? Art.rgb(1, 0.3, 0.35) : .white
             let ht = Cheats.invincible ? "∞" : (secondChance ? "♥" : "♡")
             if heart.text != ht { heart.text = ht }
         }
@@ -1056,35 +1068,65 @@ final class GameScene: SKScene {
         addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showMenu() }
 
         addButton("CHEAT MODE", x: min(W - 40, 560) / 2 - 90, y: H / 2 - 44, w: 140, h: 30,
-                  color: Cheats.on ? UIK.red : Art.rgb(0.3, 0.25, 0.55), fontSize: 14) { [weak self] in self?.showCheats() }
+                  color: Cheats.on ? UIK.red : Art.rgb(0.3, 0.25, 0.55), fontSize: 14) { [weak self] in self?.askCheatPassword() }
+        let pw = min(W - 40, 560)
+        let off = UIColor(white: 0.4, alpha: 1)
         let sense = store.d.touchSense
-        overlay.addChild(UIK.label("Beam sensitivity  \(String(format: "%.1f", sense))", size: 18, y: H * 0.22))
-        addButton("−", x: -60, y: H * 0.11, w: 54, h: 38, fontSize: 24, enabled: sense > 0.51) { [weak self] in
+        let r0 = H * 0.25, r1 = H * 0.12, r2 = -H * 0.01, r3 = -H * 0.13
+        overlay.addChild(UIK.label("Beam sensitivity  \(String(format: "%.1f", sense))", size: 17, y: r0))
+        addButton("−", x: -150, y: r0, w: 48, h: 34, fontSize: 22, enabled: sense > 0.51) { [weak self] in
             guard let self = self else { return }
             self.store.d.touchSense = max(0.5, ((sense - 0.1) * 10).rounded() / 10)
             self.store.save()
             self.showSettings()
         }
-        addButton("+", x: 60, y: H * 0.11, w: 54, h: 38, fontSize: 24, enabled: sense < 1.99) { [weak self] in
+        addButton("+", x: 150, y: r0, w: 48, h: 34, fontSize: 22, enabled: sense < 1.99) { [weak self] in
             guard let self = self else { return }
             self.store.d.touchSense = min(2.0, ((sense + 0.1) * 10).rounded() / 10)
             self.store.save()
             self.showSettings()
         }
-        addButton("MUSIC: \(sound.musicOn ? "ON" : "OFF")", x: -90, y: -H * 0.02, w: 160, h: 36, color: sound.musicOn ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 16) { [weak self] in
-            guard let self = self else { return }
-            self.sound.musicOn.toggle()
-            self.showSettings()
+
+        // volume bars: tap a block to set the level, or use − / +
+        func volumeRow(_ title: String, y: CGFloat, on: Bool, level: Float,
+                       set: @escaping (Float) -> Void, toggle: @escaping () -> Void) {
+            let steps = 10
+            let cur = Int((level * Float(steps)).rounded())
+            let bw: CGFloat = 17, gap: CGFloat = 4
+            let total = CGFloat(steps) * bw + CGFloat(steps - 1) * gap
+            let bx0 = -total / 2 + 6
+            overlay.addChild(UIK.label(title, size: 15, color: on ? .white : UIColor(white: 1, alpha: 0.5),
+                                       x: -pw / 2 + 24, y: y, align: .left))
+            addButton("−", x: bx0 - 34, y: y, w: 36, h: 30, fontSize: 20, enabled: cur > 0) { set(Float(max(0, cur - 1)) / Float(steps)) }
+            for i in 0..<steps {
+                let lit = i < cur
+                let h = 10 + CGFloat(i) * 1.8
+                let blk = addButton("", x: bx0 + CGFloat(i) * (bw + gap) + bw / 2, y: y, w: bw, h: h,
+                                    color: lit ? (on ? UIK.green : UIColor(white: 0.6, alpha: 1)) : UIColor(white: 0.18, alpha: 1), fontSize: 8) {
+                    set(Float(i + 1) / Float(steps))
+                }
+                blk.alpha = lit ? 1 : 0.8
+            }
+            addButton("+", x: bx0 + total + 22, y: y, w: 36, h: 30, fontSize: 20, enabled: cur < steps) { set(Float(min(steps, cur + 1)) / Float(steps)) }
+            overlay.addChild(UIK.label("\(cur * 10)%", size: 13, color: UIColor(white: 1, alpha: 0.75),
+                                       x: bx0 + total + 64, y: y, shadow: nil))
+            addButton(on ? "ON" : "OFF", x: pw / 2 - 42, y: y, w: 58, h: 30, color: on ? UIK.green : off, fontSize: 14, action: toggle)
         }
-        addButton("CINEMATIC FX: \(FX.cinematic ? "ON" : "OFF")", x: 0, y: -H * 0.13, w: 220, h: 34, color: FX.cinematic ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 15) { [weak self] in
+        volumeRow("MUSIC", y: r1, on: sound.musicOn, level: sound.musicVolume,
+                  set: { [weak self] v in self?.sound.musicVolume = v; self?.showSettings() },
+                  toggle: { [weak self] in self?.sound.musicOn.toggle(); self?.showSettings() })
+        volumeRow("SOUNDS", y: r2, on: sound.sfxOn, level: sound.sfxVolume,
+                  set: { [weak self] v in
+                      self?.sound.sfxVolume = v
+                      self?.sound.play("coin", volume: 0.9, minGap: 0)
+                      self?.showSettings()
+                  },
+                  toggle: { [weak self] in self?.sound.sfxOn.toggle(); self?.showSettings() })
+
+        addButton("CINEMATIC FX: \(FX.cinematic ? "ON" : "OFF")", x: 0, y: r3, w: 220, h: 32, color: FX.cinematic ? UIK.green : off, fontSize: 14) { [weak self] in
             guard let self = self else { return }
             FX.cinematic.toggle()
             self.applyCinematic()
-            self.showSettings()
-        }
-        addButton("SOUNDS: \(sound.sfxOn ? "ON" : "OFF")", x: 90, y: -H * 0.02, w: 160, h: 36, color: sound.sfxOn ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 16) { [weak self] in
-            guard let self = self else { return }
-            self.sound.sfxOn.toggle()
             self.showSettings()
         }
 
@@ -1095,7 +1137,7 @@ final class GameScene: SKScene {
             "Power-ups \(d.powerupsCollected)   •   Crashes by vehicle \(d.deathsByVehicle)"
         ]
         for (i, s) in lines.enumerated() {
-            overlay.addChild(UIK.label(s, size: 14, color: UIColor(white: 1, alpha: 0.9), y: -H * 0.15 - CGFloat(i) * 20, shadow: nil))
+            overlay.addChild(UIK.label(s, size: 13, color: UIColor(white: 1, alpha: 0.85), y: -H * 0.24 - CGFloat(i) * 17, shadow: nil))
         }
     }
 
@@ -1172,7 +1214,7 @@ final class GameScene: SKScene {
         vehicleDifficulty = 0
         nextVehicleIn = 1
         nextTankIn = CGFloat.random(in: 15...20)
-        maxHealth = store.maxHealth
+        maxHealth = store.maxHealth * 2
         health = maxHealth
         rebuildHealthBars()
         tutorial = store.d.runs < 2
@@ -2387,7 +2429,7 @@ final class GameScene: SKScene {
                 smash(o)
             } else if invincible <= 0 && damageTimer <= 0 {
                 o.hitCooldown = 1.5
-                takeDamage(o.kind.damage, byVehicle: o.kind.isVehicle)
+                takeDamage(1, byVehicle: o.kind.isVehicle)   // crash = half a heart
                 sparksAt(CGPoint(x: o.position.x, y: o.position.y + hh * s * 0.5))
             }
         }
@@ -2496,7 +2538,7 @@ final class GameScene: SKScene {
             if m.life <= 0 || m.position.y > H + 40 { dead.append(m); continue }
             if status != .dead && hypot(m.position.x - ufo.position.x, m.position.y - ufo.position.y) < max(32 * ws, 60 * ufoScale) {
                 dead.append(m)
-                takeDamage(2, byVehicle: true)
+                takeDamage(2, byVehicle: true)   // shot = one whole heart
             }
         }
         for m in dead {
@@ -2521,7 +2563,7 @@ final class GameScene: SKScene {
             return
         }
         lastHitDistance = distance
-        health -= 1   // any hit costs exactly one bar
+        health -= amount   // in half hearts: crash 1, shot 2
         if tutorialActive { health = max(1, health) }
         damageTimer = Tuning.damageTime
         hapticHeavy.impactOccurred()
