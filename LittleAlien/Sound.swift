@@ -44,7 +44,8 @@ final class Sound {
         try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         let names = ["sheep_0", "sheep_1", "sheep_2", "cow", "pig", "dog", "grumble_0", "grumble_1", "grumble_2",
-                     "coin", "collect", "grab", "hit", "explode", "powerup", "levelup", "crash", "missile", "ufo_in", "click"]
+                     "coin", "collect", "grab", "hit", "explode", "powerup", "levelup", "crash", "missile", "ufo_in", "click",
+                     "thunder", "shot", "plane", "heli", "nuke", "chest", "achieve", "siren", "mega", "warn"]
         for n in names { load(n, copies: n == "coin" || n == "collect" ? 4 : 2) }
         for i in 1...8 {
             let n = "grumpa_\(i)"

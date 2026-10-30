@@ -49,7 +49,19 @@ jobs:
           xcrun simctl io "$UDID" screenshot shots/play2.png
           sleep 10
           xcrun simctl io "$UDID" screenshot shots/play3.png
-          for pg in 0 1 2; do
+          for sc in missions awards collection friends worlds; do
+            xcrun simctl terminate "$UDID" com.rashid.littlealien || true
+            xcrun simctl launch "$UDID" com.rashid.littlealien -screen $sc
+            sleep 4
+            xcrun simctl io "$UDID" screenshot shots/screen_$sc.png
+          done
+          for m in 5200 10200; do
+            xcrun simctl terminate "$UDID" com.rashid.littlealien || true
+            xcrun simctl launch "$UDID" com.rashid.littlealien -autoplay -startat $m
+            sleep 12
+            xcrun simctl io "$UDID" screenshot shots/biome_$m.png
+          done
+          for pg in 0; do
             xcrun simctl terminate "$UDID" com.rashid.littlealien || true
             xcrun simctl launch "$UDID" com.rashid.littlealien -themes $pg
             sleep 5

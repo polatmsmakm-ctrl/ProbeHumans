@@ -368,6 +368,95 @@ def menu_music():
     save("menu_music", np.tanh(mix[:total] * 1.3), 0.7)
 
 
+# ---------------------------------------------------------------- v2 effects
+
+def thunder():
+    t = t_(2.6)
+    n = len(t)
+    crack = hp(rng.standard_normal(n), 800) * np.exp(-18 * t)
+    rumble = lp(rng.standard_normal(n), 140) * (np.exp(-1.2 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 3 * t)))
+    save("thunder", 0.6 * crack + 1.4 * rumble)
+
+
+def shot():
+    t = t_(0.45)
+    n = len(t)
+    x = lp(rng.standard_normal(n), 3000) * np.exp(-14 * t) + 0.5 * np.sin(2 * np.pi * 90 * t) * np.exp(-20 * t)
+    save("shot", x)
+
+
+def plane():
+    t = t_(2.2)
+    n = len(t)
+    f = 95 * (1.12 - 0.24 * t / 2.2)
+    ph = np.cumsum(f / SR)
+    eng = np.sign(np.sin(2 * np.pi * ph)) * 0.5 + np.sin(4 * np.pi * ph) * 0.3
+    eng *= 0.7 + 0.3 * np.sin(2 * np.pi * 28 * t)
+    vol = np.sin(np.pi * t / 2.2) ** 1.5
+    save("plane", lp(eng, 1800) * vol, 0.6)
+
+
+def heli():
+    t = t_(1.0)
+    n = len(t)
+    chop = (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 14 * t))) * np.exp(-((t * 14) % 1) * 6)
+    x = lp(rng.standard_normal(n), 600) * chop + 0.2 * np.sin(2 * np.pi * 60 * t)
+    save("heli", x, 0.6)
+
+
+def nuke():
+    t = t_(2.4)
+    n = len(t)
+    boom = lp(rng.standard_normal(n), 300) * np.exp(-1.6 * t)
+    rise = np.sin(2 * np.pi * np.cumsum((200 + 900 * t / 2.4) / SR)) * np.exp(-2 * t) * 0.3
+    crack = hp(rng.standard_normal(n), 2000) * np.exp(-25 * t) * 0.6
+    save("nuke", boom * 1.4 + rise + crack)
+
+
+def chest():
+    parts = []
+    for f in [523, 659, 784, 1047, 784, 1047, 1319, 1568]:
+        tt = t_(0.09)
+        x = np.sin(2 * np.pi * f * tt) + 0.35 * np.sin(4 * np.pi * f * tt) + 0.2 * np.sin(6 * np.pi * f * tt)
+        parts.append(x * env(len(tt), 0.003, 0.06))
+    tail = t_(0.6)
+    shimmer = sum(np.sin(2 * np.pi * f * tail) for f in [2093, 2637, 3136]) * np.exp(-5 * tail) * 0.25
+    save("chest", np.concatenate(parts + [shimmer]), 0.6)
+
+
+def achieve():
+    notes = [(784, .12), (988, .12), (1175, .12), (1568, .45)]
+    parts = []
+    for f, d in notes:
+        tt = t_(d)
+        x = np.sin(2 * np.pi * f * tt) + 0.5 * np.sign(np.sin(2 * np.pi * f * tt)) * 0.3 + 0.3 * np.sin(2 * np.pi * f * 1.5 * tt)
+        parts.append(x * env(len(tt), 0.005, min(0.2, d * 0.6)))
+    save("achieve", np.concatenate(parts), 0.6)
+
+
+def siren():
+    t = t_(1.6)
+    f = 700 + 300 * np.sin(2 * np.pi * 1.25 * t)
+    x = np.sin(2 * np.pi * np.cumsum(f / SR)) + 0.3 * np.sign(np.sin(2 * np.pi * np.cumsum(f / SR)))
+    save("siren", x * env(len(t), 0.05, 0.3), 0.45)
+
+
+def mega():
+    t = t_(0.7)
+    f = 300 + 1500 * (t / 0.7) ** 2
+    x = np.sin(2 * np.pi * np.cumsum(f / SR)) * (0.6 + 0.4 * np.sin(2 * np.pi * 30 * t))
+    save("mega", x * env(len(t), 0.01, 0.2), 0.6)
+
+
+def warn():
+    parts = []
+    for _ in range(3):
+        tt = t_(0.12)
+        parts.append(np.sign(np.sin(2 * np.pi * 1200 * tt)) * env(len(tt), 0.003, 0.03) * 0.6)
+        parts.append(np.zeros(int(0.08 * SR)))
+    save("warn", np.concatenate(parts), 0.5)
+
+
 if __name__ == "__main__":
     for i, b in enumerate([330, 380, 290]):
         sheep(i, b)
@@ -376,4 +465,5 @@ if __name__ == "__main__":
         grumble(i)
     coin(); collect(); beam_grab(); hit(); explode(); powerup(); levelup(); crash(); missile(); ufo_in(); click()
     music(); menu_music()
+    thunder(); shot(); plane(); heli(); nuke(); chest(); achieve(); siren(); mega(); warn()
     print("ok", sorted(os.listdir(OUT)))

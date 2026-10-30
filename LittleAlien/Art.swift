@@ -124,7 +124,7 @@ enum Art {
             n.addChild(Painter.sprite(Painter.sheep(variant), canvas: cv, foot: ft))
         case .cow:
             n.addChild(shadow(50))
-            let b = [UIColor(white: 0.9, alpha: 1), rgb(0.5, 0.3, 0.18), rgb(0.68, 0.5, 0.9)][variant % 3]
+            let b = [UIColor(white: 0.9, alpha: 1), rgb(0.5, 0.3, 0.18), rgb(0.68, 0.5, 0.9), rgb(0.5, 0.95, 0.4)][variant % 4]
             n.addChild(legs([-15, -8, 9, 16], w: 4.4, h: 13, color: b.darker(0.85), hoof: rgb(0.1, 0.1, 0.12)))
             n.addChild(Painter.sprite(Painter.cow(variant), canvas: CGSize(width: 84, height: 64), foot: CGPoint(x: 40, y: 6)))
         case .pig:
@@ -132,6 +132,10 @@ enum Art {
             let b = [rgb(1, 0.66, 0.74), rgb(0.56, 0.72, 0.42), rgb(0.62, 0.62, 0.64)][variant % 3]
             n.addChild(legs([-9, -4, 4, 9], w: 3.4, h: 7, color: b.darker(0.75)))
             n.addChild(Painter.sprite(Painter.pig(variant), canvas: cv, foot: CGPoint(x: 30, y: 4)))
+        case .camel:
+            n.addChild(shadow(64))
+            n.addChild(legs([-18, -10, 12, 20], w: 4.2, h: 26, color: rgb(0.62, 0.46, 0.28), hoof: rgb(0.3, 0.22, 0.14)))
+            n.addChild(Painter.sprite(Painter.camel(), canvas: CGSize(width: 96, height: 84), foot: CGPoint(x: 44, y: 0)).moved(0, 22))
         case .dog:
             n.addChild(shadow(26))
             n.addChild(legs([-9, -4, 6, 10], w: 2.8, h: 9, color: rgb(0.12, 0.12, 0.14), hoof: .white))
@@ -143,6 +147,9 @@ enum Art {
             case .farmer: o = Painter.Outfit(shirt: rgb(0.75, 0.25, 0.2), pants: rgb(0.2, 0.32, 0.6), hat: rgb(0.25, 0.4, 0.75), cap: true, hair: rgb(0.4, 0.25, 0.12))
             case .fireman: o = Painter.Outfit(shirt: rgb(0.95, 0.72, 0.15), pants: rgb(0.95, 0.72, 0.15), hat: rgb(0.85, 0.15, 0.1))
             case .soldier: o = Painter.Outfit(shirt: rgb(0.33, 0.42, 0.24), pants: rgb(0.28, 0.36, 0.2), hat: rgb(0.26, 0.34, 0.2), cap: true)
+            case .hunter: o = Painter.Outfit(shirt: rgb(0.45, 0.32, 0.2), pants: rgb(0.3, 0.3, 0.22), hat: rgb(1, 0.45, 0.05), cap: true, beard: true, hair: rgb(0.35, 0.22, 0.1))
+            case .bedouin: o = Painter.Outfit(shirt: rgb(0.95, 0.94, 0.9), pants: rgb(0.95, 0.94, 0.9), hat: rgb(0.85, 0.15, 0.15), cap: true)
+            case .citizen: o = Painter.Outfit(shirt: rgb(0.2, 0.22, 0.3), pants: rgb(0.15, 0.16, 0.2), hair: rgb(0.15, 0.1, 0.08))
             default: o = Painter.Outfit(shirt: rgb(0.3, 0.3, 0.42), pants: rgb(0.15, 0.15, 0.2), hair: rgb(0.85, 0.65, 0.2))
             }
             n.addChild(shadow(20))
@@ -162,6 +169,18 @@ enum Art {
                 fork.addChild(block(10, 1.8, UIColor(white: 0.7, alpha: 1), 0, 34))
                 for dx in [-4.5, 0, 4.5] as [CGFloat] { fork.addChild(block(1.4, 8, UIColor(white: 0.75, alpha: 1), dx, 38)) }
                 n.addChild(fork)
+            }
+            if kind == .hunter {
+                let gun = SKNode()
+                gun.name = "gun"
+                gun.position = CGPoint(x: 6, y: 22)
+                gun.addChild(block(26, 2.4, rgb(0.15, 0.15, 0.17), 13, 0))
+                gun.addChild(block(10, 4, rgb(0.45, 0.28, 0.15), 2, -1))
+                n.addChild(gun)
+            }
+            if kind == .citizen {
+                n.addChild(block(2.2, 9, rgb(0.8, 0.15, 0.15), 1, 20))
+                n.addChild(block(8, 6, rgb(0.25, 0.2, 0.15), 10, 14))
             }
             if kind == .reporter {
                 let cam = SKNode()
@@ -219,6 +238,19 @@ enum Art {
                 siren.run(.repeatForever(.sequence([.fadeAlpha(to: 0.2, duration: 0.15), .fadeAlpha(to: 1, duration: 0.15)])))
                 n.addChild(siren)
             }
+        case .powerline:
+            n.addChild(shadow(16))
+            n.addChild(Painter.sprite(Painter.powerPole(), canvas: CGSize(width: 40, height: 132), foot: CGPoint(x: 20, y: 0)))
+        case .building:
+            add(Painter.building(Int.random(in: 0..<3)), 110, 156, footY: 2, shadowW: 100)
+        case .lamp:
+            add(Painter.lamp(), 50, 104, footY: 0, shadowW: 18)
+        case .hydrant:
+            add(Painter.hydrant(), 24, 28, footY: 2, shadowW: 18)
+        case .tent:
+            add(Painter.tent(), 96, 56, footY: 3, shadowW: 92)
+        case .palm:
+            add(Painter.palm(), 90, 130, footY: 0, shadowW: 30)
         case .tank:
             let b = SKNode()
             b.name = "barrel"
@@ -259,6 +291,9 @@ enum Art {
         case .rampage: txt = "⚡︎"
         case .magnet: txt = "U"
         case .multiply: txt = "2X"
+        case .shield: txt = "◯"
+        case .twin: txt = "II"
+        case .slowmo: txt = "⏱︎"
         }
         let l = SKLabelNode(fontNamed: "AvenirNext-HeavyItalic")
         l.text = txt
@@ -373,6 +408,13 @@ extension UIColor {
 extension SKNode {
     func rotated(_ a: CGFloat) -> Self {
         zRotation = a
+        return self
+    }
+}
+
+extension SKNode {
+    func moved(_ x: CGFloat, _ y: CGFloat) -> Self {
+        position = CGPoint(x: position.x + x, y: position.y + y)
         return self
     }
 }

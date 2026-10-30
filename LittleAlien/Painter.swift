@@ -395,10 +395,11 @@ enum Painter {
     }
 
     static func cow(_ v: Int) -> SKTexture {
-        let bodies: [UIColor] = [c(0.96, 0.95, 0.92), c(0.55, 0.34, 0.2), c(0.74, 0.55, 0.96)]
-        let spots: [UIColor] = [c(0.1, 0.1, 0.12), c(0.3, 0.18, 0.1), c(0.4, 0.24, 0.65)]
-        let b = bodies[v % 3], sp = spots[v % 3]
+        let bodies: [UIColor] = [c(0.96, 0.95, 0.92), c(0.55, 0.34, 0.2), c(0.74, 0.55, 0.96), c(0.55, 1, 0.4)]
+        let spots: [UIColor] = [c(0.1, 0.1, 0.12), c(0.3, 0.18, 0.1), c(0.4, 0.24, 0.65), c(0.1, 0.45, 0.08)]
+        let b = bodies[v % 4], sp = spots[v % 4]
         return texture("cow\(v)", CGSize(width: 84, height: 64)) { ctx, _ in
+            if v == 3 { radial(ctx, ell(42, 32, 84, 64), [c(0.5, 1, 0.3, 0.55), c(0.4, 1, 0.2, 0)], CGPoint(x: 42, y: 32), 42) }
             let body = rr(40, 30, 50, 24, 11)
             ball(ctx, body, b, light: 1.1, dark: 0.62, rect: CGRect(x: 15, y: 18, width: 50, height: 24))
             ctx.saveGState()

@@ -4,13 +4,16 @@ import UIKit
 // MARK: - Powers
 
 enum PowerType: Int, CaseIterable {
-    case rampage = 0, magnet, multiply
+    case rampage = 0, magnet, multiply, shield, twin, slowmo
 
     var title: String {
         switch self {
         case .rampage: return "Rampage"
         case .magnet: return "Magnet"
         case .multiply: return "Multiplier"
+        case .shield: return "Shield"
+        case .twin: return "Twin Beam"
+        case .slowmo: return "Slow-Mo"
         }
     }
 
@@ -19,6 +22,9 @@ enum PowerType: Int, CaseIterable {
         case .rampage: return "Huge beam that smashes obstacles"
         case .magnet: return "Pulls in coins from all around"
         case .multiply: return "Double points"
+        case .shield: return "Blocks the next hit"
+        case .twin: return "Two beams at once"
+        case .slowmo: return "Slows the whole world"
         }
     }
 
@@ -28,6 +34,9 @@ enum PowerType: Int, CaseIterable {
         case .rampage: return [5, 10, 15]
         case .magnet: return [15, 20, 25]
         case .multiply: return [10, 15, 20]
+        case .shield: return [20, 30, 40]
+        case .twin: return [10, 13, 16]
+        case .slowmo: return [5, 7, 9]
         }
     }
 
@@ -36,6 +45,9 @@ enum PowerType: Int, CaseIterable {
         case .rampage: return UIColor(red: 1, green: 0.45, blue: 0.1, alpha: 1)
         case .magnet: return UIColor(red: 0.95, green: 0.2, blue: 0.3, alpha: 1)
         case .multiply: return UIColor(red: 1, green: 0.8, blue: 0.1, alpha: 1)
+        case .shield: return UIColor(red: 0.3, green: 0.7, blue: 1, alpha: 1)
+        case .twin: return UIColor(red: 0.75, green: 0.4, blue: 1, alpha: 1)
+        case .slowmo: return UIColor(red: 0.3, green: 1, blue: 0.75, alpha: 1)
         }
     }
 }
@@ -95,11 +107,12 @@ enum Tuning {
 // MARK: - Creatures
 
 enum Kind: Int {
-    case sheep, cow, pig, grumpa, farmer, dog, fireman, soldier, reporter
+    case sheep, cow, pig, grumpa, farmer, dog, fireman, soldier, reporter, hunter, camel, bedouin, citizen
 
     var weight: CGFloat {
         switch self {
         case .cow: return 4
+        case .camel: return 5
         case .pig: return 2.5
         case .sheep: return 1.5
         case .dog: return 1
@@ -115,12 +128,14 @@ enum Kind: Int {
         case .dog: return 60...90
         case .pig: return 10...20
         case .grumpa: return 22...34
+        case .camel: return 10...18
+        case .hunter: return 0...0
         default: return 26...40
         }
     }
 
-    var flees: Bool { return self != .cow && self != .pig }
-    var isHuman: Bool { return [.grumpa, .farmer, .fireman, .soldier, .reporter].contains(self) }
+    var flees: Bool { return self != .cow && self != .pig && self != .camel && self != .hunter }
+    var isHuman: Bool { return [.grumpa, .farmer, .fireman, .soldier, .reporter, .hunter, .bedouin, .citizen].contains(self) }
 }
 
 /// Animals and people you can unlock in the store (the "HUMANS" tab of the original).
@@ -149,7 +164,17 @@ struct Unlockable {
     ]
 
     static func points(_ k: Kind, _ v: Int) -> Int {
-        return all.first { $0.kind == k && $0.variant == v }?.points ?? (k == .dog ? 3 : 5)
+        if let u = all.first(where: { $0.kind == k && $0.variant == v }) { return u.points }
+        switch k {
+        case .dog: return 3
+        case .hunter: return 25
+        case .camel: return 30
+        case .bedouin: return 15
+        case .citizen: return 10
+        case .cow where v == 3: return 60      // nuclear cow
+        case .sheep where v == 2: return 100   // rare golden sheep in the wild
+        default: return 5
+        }
     }
 }
 
@@ -157,6 +182,7 @@ struct Unlockable {
 
 enum ObKind {
     case fence, shed, barrels, car, police, jeep, truck, windmill, silo, house, fireTruck, barn, tank
+    case powerline, building, lamp, hydrant, tent, palm
 
     var damage: Int {
         switch self {
@@ -164,12 +190,13 @@ enum ObKind {
         case .barrels, .car, .police, .jeep, .truck, .windmill, .silo: return 2
         case .house, .fireTruck: return 3
         case .barn, .tank: return 4
+        default: return 1
         }
     }
 
     var isStatic: Bool {
         switch self {
-        case .fence, .shed, .windmill, .silo, .house, .barn, .barrels: return true
+        case .fence, .shed, .windmill, .silo, .house, .barn, .barrels, .powerline, .building, .lamp, .hydrant, .tent, .palm: return true
         default: return false
         }
     }
@@ -196,6 +223,12 @@ enum ObKind {
         case .silo: return (18, 80)
         case .house: return (34, 70)
         case .barn: return (42, 66)
+        case .powerline: return (5, 120)
+        case .building: return (52, 140)
+        case .lamp: return (5, 92)
+        case .hydrant: return (8, 18)
+        case .tent: return (40, 40)
+        case .palm: return (8, 110)
         }
     }
 
@@ -219,6 +252,7 @@ class GroundThing: SKNode {
     var liftOffset = CGPoint.zero
     var liftScale: CGFloat = 1
     var spin: CGFloat = CGFloat.random(in: -1...1)
+    var onTwin = false
 }
 
 final class Flock {
@@ -238,7 +272,7 @@ final class Flock {
 final class Creature: GroundThing {
     let kind: Kind
     let variant: Int
-    let value: Int
+    var value: Int
     let body: SKNode
     var vx: CGFloat = 0
     var vd: CGFloat = 0
@@ -254,6 +288,10 @@ final class Creature: GroundThing {
     var legsNode: SKNode?
     var forkNode: SKNode?
     var flashNode: SKNode?
+    var rare = false
+    var aimTimer: CGFloat = 2.5
+    var aimLine: SKShapeNode?
+    var glow: SKNode?
 
     init(kind: Kind, variant: Int, body: SKNode) {
         self.kind = kind
@@ -275,6 +313,12 @@ final class Obstacle: GroundThing {
     var dead = false
     var fireTimer: CGFloat = CGFloat.random(in: 1...2)
     var hitCooldown: CGFloat = 0
+    /// power lines: distance to the second pole and the wire drawn between them
+    var span: CGFloat = 0
+    var wire: SKShapeNode?
+    var pole2: SKNode?
+    /// boss tank
+    var giant = false
 
     init(kind: ObKind) {
         self.kind = kind
@@ -342,6 +386,22 @@ struct SaveData: Codable {
     var unlocked: [String]? = nil
     var themesOwned: [String]? = nil
     var theme: String? = nil
+    // retention
+    var missionsDay: String? = nil
+    var missions: [Mission]? = nil
+    var rewardDay: String? = nil
+    var rewardStreak: Int? = nil
+    var achievements: [String]? = nil
+    var kindCounts: [String: Int]? = nil
+    var playerName: String? = nil
+    var friends: [FriendScore]? = nil
+    var worldsOwned: [String]? = nil
+    var world: String? = nil
+    var coinsEarnedTotal: Int? = nil
+    var bossesBeaten: Int? = nil
+    var nukes: Int? = nil
+    var raresCaught: Int? = nil
+    var furthestBiome: Int? = nil
 }
 
 final class Store {
@@ -362,6 +422,8 @@ final class Store {
         if d.unlocked == nil {
             d.unlocked = Unlockable.all.filter { $0.cost == 0 }.map { $0.id }
         }
+        // older saves only had 3 power slots
+        while d.powerLevel.count < PowerType.allCases.count { d.powerLevel.append(0) }
     }
 
     func save() {

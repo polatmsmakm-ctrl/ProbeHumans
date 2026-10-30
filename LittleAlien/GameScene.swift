@@ -7,158 +7,195 @@ import UIKit
 final class GameScene: SKScene {
     enum Screen { case menu, store, settings, playing, paused, over }
     enum UFOStatus { case intro, play, boost, dead }
-    enum StoreTab: Int { case ufo, powers, items, animals }
+    enum StoreTab: Int { case ufo, worlds, powers, items, animals }
 
-    private let store = Store.shared
-    private let sound = Sound.shared
+    let store = Store.shared
+    let sound = Sound.shared
 
     // MARK: Layout / projection
-    private var W: CGFloat = 0
-    private var H: CGFloat = 0
-    private var ws: CGFloat = 1
-    private var P: CGFloat = 1.5          // projection factor (screen points per world unit at depth 1)
-    private var horizonV: CGFloat = 0     // vanishing line
-    private var A: CGFloat = 0            // y(d) = horizonV - A / d
-    private let dMin: CGFloat = 1.1
-    private let dMax: CGFloat = 3.1
-    private var fieldTop: CGFloat = 0
-    private var camX: CGFloat = 0
+    var W: CGFloat = 0
+    var H: CGFloat = 0
+    var ws: CGFloat = 1
+    var P: CGFloat = 1.5          // projection factor (screen points per world unit at depth 1)
+    var horizonV: CGFloat = 0     // vanishing line
+    var A: CGFloat = 0            // y(d) = horizonV - A / d
+    let dMin: CGFloat = 1.1
+    let dMax: CGFloat = 3.1
+    var fieldTop: CGFloat = 0
+    var camX: CGFloat = 0
 
-    private func sy(_ d: CGFloat) -> CGFloat { return horizonV - A / d }
-    private func sc(_ d: CGFloat) -> CGFloat { return P / d }
-    private func sx(_ x: CGFloat, _ d: CGFloat) -> CGFloat { return W * 0.5 + (x - camX) * P / d }
-    private func depth(atY y: CGFloat) -> CGFloat { return A / max(1, horizonV - y) }
-    private func worldX(atX x: CGFloat, d: CGFloat) -> CGFloat { return camX + (x - W * 0.5) * d / P }
-    private func roadD(_ x: CGFloat) -> CGFloat {
+    func sy(_ d: CGFloat) -> CGFloat { return horizonV - A / d }
+    func sc(_ d: CGFloat) -> CGFloat { return P / d }
+    func sx(_ x: CGFloat, _ d: CGFloat) -> CGFloat { return W * 0.5 + (x - camX) * P / d }
+    func depth(atY y: CGFloat) -> CGFloat { return A / max(1, horizonV - y) }
+    func worldX(atX x: CGFloat, d: CGFloat) -> CGFloat { return camX + (x - W * 0.5) * d / P }
+    func roadD(_ x: CGFloat) -> CGFloat {
         return 2.05 + 0.6 * sin(x / 1150) + 0.22 * sin(x / 430 + 2)
     }
 
     // MARK: Nodes
-    private let bg = SKNode()
-    private let world = SKNode()
-    private let road = SKShapeNode()
-    private let roadEdge = SKShapeNode()
-    private let beamGlow = SKShapeNode()
-    private let beamCore = SKShapeNode()
-    private let beamRing = SKShapeNode()
-    private let crosshair = SKNode()
-    private var sparkles: [(SKSpriteNode, CGFloat, CGFloat)] = []
-    private let liftLayer = SKNode()
-    private let ufo = SKNode()
-    private var ufoArt = SKNode()
-    private let fx = SKNode()
-    private var vignette = SKSpriteNode()
-    private var redFlash = SKSpriteNode()
-    private let ui = SKNode()
-    private let hud = SKNode()
-    private var overlay = SKNode()
-    private var buttons: [Button] = []
-    private var clouds: [SKNode] = []
-    private var trees: [SKNode] = []
-    private var hills: [SKNode] = []
-    private var cloudTiles: [SKSpriteNode] = []
-    private var farTiles: [SKSpriteNode] = []
-    private var nearTiles: [SKSpriteNode] = []
-    private var hedgeTiles: [SKSpriteNode] = []
-    private let beamSprite = SKSpriteNode()
-    private let beamInner = SKSpriteNode()
-    private let landing = SKSpriteNode()
-    private let landing2 = SKSpriteNode()
-    private var ufoScale: CGFloat = 1
-    private var sideInset: CGFloat = 0
-    private var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
-    private let beamDust = SKEmitterNode()
-    private var haze = SKSpriteNode()
-    private var nextFenceX: CGFloat = 0
-    private var nextFarX: CGFloat = 0
+    let bg = SKNode()
+    let world = SKNode()
+    let road = SKShapeNode()
+    let roadEdge = SKShapeNode()
+    let beamGlow = SKShapeNode()
+    let beamCore = SKShapeNode()
+    let beamRing = SKShapeNode()
+    let crosshair = SKNode()
+    var sparkles: [(SKSpriteNode, CGFloat, CGFloat)] = []
+    let liftLayer = SKNode()
+    let ufo = SKNode()
+    var ufoArt = SKNode()
+    let fx = SKNode()
+    var vignette = SKSpriteNode()
+    var redFlash = SKSpriteNode()
+    let ui = SKNode()
+    let hud = SKNode()
+    var overlay = SKNode()
+    var buttons: [Button] = []
+    var clouds: [SKNode] = []
+    var trees: [SKNode] = []
+    var hills: [SKNode] = []
+    var cloudTiles: [SKSpriteNode] = []
+    var farTiles: [SKSpriteNode] = []
+    var nearTiles: [SKSpriteNode] = []
+    var hedgeTiles: [SKSpriteNode] = []
+    let beamSprite = SKSpriteNode()
+    let beamInner = SKSpriteNode()
+    let landing = SKSpriteNode()
+    let landing2 = SKSpriteNode()
+    var ufoScale: CGFloat = 1
+    var sideInset: CGFloat = 0
+    // big update state
+    var grabTimes: [CGFloat] = []
+    var lastMega: CGFloat = -10
+    let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
+    let rainNode = SKEmitterNode()
+    let snowNode = SKEmitterNode()
+    var raining = false
+    var rainLeft: CGFloat = 0
+    var nextWeatherAt = 1500
+    var lightningIn: CGFloat = 4
+    let flashNode = SKSpriteNode()
+    let dawnNode = SKSpriteNode()
+    let slowTint = SKSpriteNode()
+    var flyers: [Flyer] = []
+    var dusterIn: CGFloat = 25
+    var warnNode: SKNode?
+    var searchLight: SKSpriteNode?
+    var searchCone: SKSpriteNode?
+    var searchLeft: CGFloat = 0
+    var searchIn: CGFloat = 20
+    var searchPhase: CGFloat = 0
+    var spottedCooldown: CGFloat = 0
+    var bossNode: SKNode?
+    var bossTank: Obstacle?
+    var bossLeft: CGFloat = 0
+    var bossFireIn: CGFloat = 2
+    var nextBossAt = 3000
+    var bossCount = 0
+    var bossLabel = SKLabelNode()
+    var biome: Biome = .farm
+    var fieldNode: SKSpriteNode?
+    let beamSprite2 = SKSpriteNode()
+    let landing3 = SKSpriteNode()
+    let shieldNode = SKShapeNode()
+    var lastHitDistance = 0
+    var lastMissionTick: CGFloat = 0
+    var bats: [SKSpriteNode] = []
+    var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
+    let beamDust = SKEmitterNode()
+    var haze = SKSpriteNode()
+    var nextFenceX: CGFloat = 0
+    var nextFarX: CGFloat = 0
     // left depth slider
-    private let slider = SKNode()
-    private let sliderThumb = SKShapeNode()
-    private var sliderRect = CGRect.zero
-    private var sliding = false
+    let slider = SKNode()
+    let sliderThumb = SKShapeNode()
+    var sliderRect = CGRect.zero
+    var sliding = false
 
     // HUD
-    private var scoreLabel = SKLabelNode()
-    private var multLabel = SKLabelNode()
-    private let ringTrack = SKShapeNode()
-    private let ringFill = SKShapeNode()
-    private var healthBars: [SKShapeNode] = []
-    private var coinLabel = SKLabelNode()
-    private var distLabel = SKLabelNode()
-    private var powerLabel = SKLabelNode()
-    private var pauseButton: Button?
+    var scoreLabel = SKLabelNode()
+    var multLabel = SKLabelNode()
+    let ringTrack = SKShapeNode()
+    let ringFill = SKShapeNode()
+    var healthBars: [SKShapeNode] = []
+    var coinLabel = SKLabelNode()
+    var distLabel = SKLabelNode()
+    var powerLabel = SKLabelNode()
+    var pauseButton: Button?
 
     // MARK: Run state
-    private var screen: Screen = .menu
-    private var status: UFOStatus = .intro
-    private var storeTab: StoreTab = .powers
-    private var storePage = 0
-    private var runCfg = RunConfig()
-    private var lastTime: TimeInterval = 0
-    private var clock: CGFloat = 0
-    private var elapsed: CGFloat = 0
-    private var overTimer: CGFloat = 0
+    var screen: Screen = .menu
+    var status: UFOStatus = .intro
+    var storeTab: StoreTab = .powers
+    var storePage = 0
+    var runCfg = RunConfig()
+    var lastTime: TimeInterval = 0
+    var clock: CGFloat = 0
+    var elapsed: CGFloat = 0
+    var overTimer: CGFloat = 0
 
-    private var touching = false
-    private var lastTouch: CGPoint = .zero
-    private var target = CGPoint.zero        // where the finger wants the beam (screen)
-    private var beamPt = CGPoint.zero        // smoothed beam end (screen)
-    private var ufoPos = CGPoint.zero        // screen
-    private var ufoVel: CGFloat = 0
-    private var ufoDepth: CGFloat = 2
-    private var beamOn = false
+    var touching = false
+    var lastTouch: CGPoint = .zero
+    var target = CGPoint.zero        // where the finger wants the beam (screen)
+    var beamPt = CGPoint.zero        // smoothed beam end (screen)
+    var ufoPos = CGPoint.zero        // screen
+    var ufoVel: CGFloat = 0
+    var ufoDepth: CGFloat = 2
+    var beamOn = false
 
-    private var moveSpeed: CGFloat = Tuning.startSpeed
-    private var streakSpeed: CGFloat = 0
-    private var curSpeed: CGFloat = 0
-    private var distance = 0
-    private var boostUntil: CGFloat = 0
-    private var nextSpeedBanner = 1000
-    private var score = 0
-    private var runCoins = 0
-    private var health = 3
-    private var maxHealth = 3
-    private var level = 0
-    private var collectedStreak = 0
-    private var sinceCollect: CGFloat = 0
-    private var invincible: CGFloat = 0
-    private var damageTimer: CGFloat = 0
-    private var power: PowerType?
-    private var powerTimer: CGFloat = 0
-    private var secondChance = false
-    private var tutorial = false
-    private var abducted = 0
-    private var deathV = CGVector.zero
-    private var bouncesLeft = 0
+    var moveSpeed: CGFloat = Tuning.startSpeed
+    var streakSpeed: CGFloat = 0
+    var curSpeed: CGFloat = 0
+    var distance = 0
+    var boostUntil: CGFloat = 0
+    var nextSpeedBanner = 1000
+    var score = 0
+    var runCoins = 0
+    var health = 3
+    var maxHealth = 3
+    var level = 0
+    var collectedStreak = 0
+    var sinceCollect: CGFloat = 0
+    var invincible: CGFloat = 0
+    var damageTimer: CGFloat = 0
+    var power: PowerType?
+    var powerTimer: CGFloat = 0
+    var secondChance = false
+    var tutorial = false
+    var abducted = 0
+    var deathV = CGVector.zero
+    var bouncesLeft = 0
 
-    private var inVehicleState = false
-    private var stateTimer: CGFloat = 0
-    private var vehicleDuration = Tuning.vehicleDuration
-    private var vehicleDifficulty = 0
-    private var nextVehicleIn: CGFloat = 1
-    private var nextTankIn: CGFloat = 18
+    var inVehicleState = false
+    var stateTimer: CGFloat = 0
+    var vehicleDuration = Tuning.vehicleDuration
+    var vehicleDifficulty = 0
+    var nextVehicleIn: CGFloat = 1
+    var nextTankIn: CGFloat = 18
 
     // Entities
-    private var creatures: [Creature] = []
-    private var obstacles: [Obstacle] = []
-    private var coins: [Coin] = []
-    private var pickups: [Pickup] = []
-    private var decals: [Decal] = []
-    private var missiles: [Missile] = []
-    private var flocks: [Flock] = []
+    var creatures: [Creature] = []
+    var obstacles: [Obstacle] = []
+    var coins: [Coin] = []
+    var pickups: [Pickup] = []
+    var decals: [Decal] = []
+    var missiles: [Missile] = []
+    var flocks: [Flock] = []
 
-    private var nextGroupX: CGFloat = 0
-    private var nextStaticX: CGFloat = 0
-    private var nextCoinX: CGFloat = 0
-    private var nextPickupX: CGFloat = 0
-    private var nextTuftX: CGFloat = 0
-    private var nextSign = Tuning.signEvery
-    private var pendingSigns: [(CGFloat, [String])] = []
+    var nextGroupX: CGFloat = 0
+    var nextStaticX: CGFloat = 0
+    var nextCoinX: CGFloat = 0
+    var nextPickupX: CGFloat = 0
+    var nextTuftX: CGFloat = 0
+    var nextSign = Tuning.signEvery
+    var pendingSigns: [(CGFloat, [String])] = []
 
     /// Launch argument used by the CI screenshot job: plays by itself.
-    private let autoplay = ProcessInfo.processInfo.arguments.contains("-autoplay")
-    private let hapticLight = UIImpactFeedbackGenerator(style: .light)
-    private let hapticHeavy = UIImpactFeedbackGenerator(style: .heavy)
+    let autoplay = ProcessInfo.processInfo.arguments.contains("-autoplay")
+    let hapticLight = UIImpactFeedbackGenerator(style: .light)
+    let hapticHeavy = UIImpactFeedbackGenerator(style: .heavy)
 
     // MARK: - Setup
 
@@ -172,7 +209,7 @@ final class GameScene: SKScene {
         setup()
     }
 
-    private func setup() {
+    func setup() {
         removeAllChildren()
         removeAllActions()
         for n in [bg, world, liftLayer, ufo, fx, ui, hud] { n.removeAllChildren() }
@@ -317,6 +354,7 @@ final class GameScene: SKScene {
         ui.addChild(hud)
         buildHUD()
 
+        setupExtras()
         showMenu()
         if autoplay {
             run(.wait(forDuration: 1.0)) { [weak self] in self?.startGame() }
@@ -325,9 +363,39 @@ final class GameScene: SKScene {
         if let i = args.firstIndex(of: "-themes"), i + 1 < args.count, let pg = Int(args[i + 1]) {
             run(.wait(forDuration: 0.5)) { [weak self] in self?.showStore(.ufo, page: pg) }
         }
+        if let i = args.firstIndex(of: "-screen"), i + 1 < args.count {
+            let what = args[i + 1]
+            run(.wait(forDuration: 0.6)) { [weak self] in
+                guard let self = self else { return }
+                switch what {
+                case "missions": self.showMissions()
+                case "awards": self.showAwards()
+                case "collection": self.showAwards(tab: 1)
+                case "friends": self.showFriends()
+                case "worlds": self.showStore(.worlds)
+                default: break
+                }
+            }
+        }
+        if let i = args.firstIndex(of: "-startat"), i + 1 < args.count, let m = Int(args[i + 1]) {
+            // jump ahead (used by the screenshot job to check the city and desert)
+            run(.wait(forDuration: 2.2)) { [weak self] in
+                guard let self = self else { return }
+                self.camX = CGFloat(m) * Tuning.unit
+                self.nextGroupX = self.camX
+                self.nextStaticX = self.camX + 300
+                self.nextTuftX = self.camX - self.W * 0.5 * self.dMax / self.P
+                self.nextFenceX = self.nextTuftX
+                self.nextFarX = self.camX - 300
+                self.nextCoinX = self.camX + 200
+                self.nextSign = (m / Tuning.signEvery + 1) * Tuning.signEvery
+                self.nextBossAt = m + 3000
+                self.nextWeatherAt = m + 400
+            }
+        }
     }
 
-    private func setUFOArt() {
+    func setUFOArt() {
         ufoArt.removeFromParent()
         ufoArt = Art.ufo(theme: store.currentTheme)
         ufoScale = min(W * 0.23, H * 0.5) / 220
@@ -335,7 +403,7 @@ final class GameScene: SKScene {
         ufo.addChild(ufoArt)
     }
 
-    private func buildCrosshair() {
+    func buildCrosshair() {
         crosshair.removeAllChildren()
         crosshair.removeFromParent()
         let c = SKShapeNode(circleOfRadius: 10)
@@ -351,7 +419,7 @@ final class GameScene: SKScene {
         addChild(crosshair)
     }
 
-    private func buildBackground() {
+    func buildBackground() {
         let sky = SKSpriteNode(texture: Painter.sky(size), size: size)
         sky.anchorPoint = .zero
         sky.zPosition = 0
@@ -387,6 +455,8 @@ final class GameScene: SKScene {
         field.anchorPoint = .zero
         field.zPosition = 5
         bg.addChild(field)
+        fieldNode = field
+        biome = .farm
 
         // haze where the field meets the hills
         let fog = SKSpriteNode(texture: Art.gradient(size: CGSize(width: 8, height: 64),
@@ -399,7 +469,7 @@ final class GameScene: SKScene {
         bg.addChild(fog)
     }
 
-    private func moveFireflies(_ dx: CGFloat) {
+    func moveFireflies(_ dx: CGFloat) {
         for f in fireflies {
             let n = f.node
             n.position.x += -dx * P / 1.8 + sin(clock * f.speed + f.phase) * 0.4
@@ -409,7 +479,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func scrollBackground(_ dx: CGFloat) {
+    func scrollBackground(_ dx: CGFloat) {
         moveFireflies(dx)
         func scroll(_ arr: [SKSpriteNode], _ amount: CGFloat) {
             for t in arr {
@@ -425,7 +495,7 @@ final class GameScene: SKScene {
 
     // MARK: - HUD
 
-    private func pill(_ w: CGFloat, _ h: CGFloat, at p: CGPoint) -> SKShapeNode {
+    func pill(_ w: CGFloat, _ h: CGFloat, at p: CGPoint) -> SKShapeNode {
         let n = SKShapeNode(rectOf: CGSize(width: w, height: h), cornerRadius: h / 2)
         n.fillColor = UIColor(red: 0.02, green: 0.03, blue: 0.08, alpha: 0.55)
         n.strokeColor = UIColor(white: 1, alpha: 0.1)
@@ -434,7 +504,7 @@ final class GameScene: SKScene {
         return n
     }
 
-    private func buildHUD() {
+    func buildHUD() {
         let top = H / 2
         let hs = min(1.25, max(0.85, H / 390))
         // coins + distance pills (top-left)
@@ -541,7 +611,7 @@ final class GameScene: SKScene {
         rebuildHealthBars()
     }
 
-    private func rebuildHealthBars() {
+    func rebuildHealthBars() {
         shownHealth = -1
         ringFrac = -1
         for b in healthBars { b.removeFromParent() }
@@ -559,13 +629,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func setText(_ l: SKLabelNode, _ s: String) {
+    func setText(_ l: SKLabelNode, _ s: String) {
         if l.text == s { return }
         l.text = s
         (l.children.first as? SKLabelNode)?.text = s
     }
 
-    private func updateHUD() {
+    func updateHUD() {
         setText(scoreLabel, UIK.coins(score))
         setText(multLabel, "\(multiplier)X")
         setText(coinLabel, "\(runCoins)")
@@ -623,7 +693,7 @@ final class GameScene: SKScene {
 
     // MARK: - Overlay helpers
 
-    private func newOverlay(dim: CGFloat = 0) {
+    func newOverlay(dim: CGFloat = 0) {
         overlay.removeFromParent()
         overlay = SKNode()
         overlay.zPosition = 100
@@ -635,7 +705,7 @@ final class GameScene: SKScene {
     }
 
     @discardableResult
-    private func addButton(_ text: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat = 40, color: UIColor = UIK.orange,
+    func addButton(_ text: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat = 40, color: UIColor = UIK.orange,
                            fontSize: CGFloat = 18, enabled: Bool = true, plain: Bool = false, coin: Bool = false,
                            to parent: SKNode? = nil, action: @escaping () -> Void) -> Button {
         let b = Button(text, w: w, h: h, color: color, fontSize: fontSize, enabled: enabled, plain: plain, coin: coin, action: action)
@@ -645,7 +715,7 @@ final class GameScene: SKScene {
         return b
     }
 
-    private func coinBadge() {
+    func coinBadge() {
         let ci = UIK.coinIcon(9)
         ci.position = CGPoint(x: -W / 2 + 26, y: H / 2 - 22)
         overlay.addChild(ci)
@@ -655,7 +725,7 @@ final class GameScene: SKScene {
 
     // MARK: - Menu
 
-    private func showMenu() {
+    func showMenu() {
         screen = .menu
         hud.isHidden = true
         resetWorld()
@@ -687,15 +757,25 @@ final class GameScene: SKScene {
             self?.startGame()
         }
 
-        let lx = -W / 2 + 110 * s
+        let lx = -W / 2 + max(110 * s, sideInset + 80 * s)
+        store.refreshMissionsIfNeeded()
+        let badge = store.unclaimedMissions > 0 ? " (\(store.unclaimedMissions))" : ""
         let items: [(String, () -> Void)] = [
             ("STORE", { [weak self] in self?.showStore(.powers) }),
             ("THEMES", { [weak self] in self?.showStore(.ufo) }),
+            ("MISSIONS" + badge, { [weak self] in self?.showMissions() }),
+            ("AWARDS", { [weak self] in self?.showAwards() }),
+            ("FRIENDS", { [weak self] in self?.showFriends() }),
             ("OPTIONS", { [weak self] in self?.showSettings() })
         ]
         for (i, it) in items.enumerated() {
-            let b = addButton(it.0, x: lx + CGFloat(i) * 8, y: H * 0.12 - CGFloat(i) * 44 * s, w: 160 * s, h: 38 * s, fontSize: 28 * s, plain: true, action: it.1)
-            b.zRotation = 0.08
+            let b = addButton(it.0, x: lx + CGFloat(i) * 5, y: H * 0.2 - CGFloat(i) * 32 * s, w: 170 * s, h: 28 * s, fontSize: 21 * s, plain: true, action: it.1)
+            b.zRotation = 0.06
+        }
+        overlay.addChild(UIK.label(store.title.uppercased(), size: 13 * s, color: UIK.cyan, x: -W * 0.12, y: titleY - 50 * s, shadow: nil))
+        if store.dailyRewardReady {
+            let chest = addButton("DAILY CHEST!", x: W * 0.3, y: H * 0.3, w: 170, h: 38, color: UIK.green, fontSize: 17) { [weak self] in self?.claimDaily() }
+            chest.run(.repeatForever(.sequence([.scale(to: 1.08, duration: 0.45), .scale(to: 1, duration: 0.45)])))
         }
 
         coinBadge()
@@ -722,7 +802,7 @@ final class GameScene: SKScene {
 
     // MARK: - Store (tabs like the original: UFO / POWER-UPS / ITEMS / ANIMALS)
 
-    private struct Card {
+    struct Card {
         var title: String
         var icon: SKNode
         var desc: String
@@ -733,7 +813,7 @@ final class GameScene: SKScene {
         var action: (() -> Void)?
     }
 
-    private func showStore(_ tab: StoreTab, page: Int = 0) {
+    func showStore(_ tab: StoreTab, page: Int = 0) {
         screen = .store
         storeTab = tab
         storePage = page
@@ -744,8 +824,8 @@ final class GameScene: SKScene {
         overlay.addChild(UIK.label("STORE", size: 22, color: UIK.cyan, y: H / 2 - 40))
         addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showMenu() }
 
-        let tabs: [(String, StoreTab)] = [("THEMES", .ufo), ("POWER-UPS", .powers), ("ITEMS", .items), ("ANIMALS", .animals)]
-        let tw = (pw - 60) / 4
+        let tabs: [(String, StoreTab)] = [("THEMES", .ufo), ("WORLDS", .worlds), ("POWER-UPS", .powers), ("ITEMS", .items), ("ANIMALS", .animals)]
+        let tw = (pw - 60) / 5
         for (i, t) in tabs.enumerated() {
             let x = -pw / 2 + 30 + tw * (CGFloat(i) + 0.5)
             let y = H / 2 - 72
@@ -802,7 +882,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func wrap(_ s: String, max: Int) -> [String] {
+    func wrap(_ s: String, max: Int) -> [String] {
         var out: [String] = []
         var cur = ""
         for w in s.split(separator: " ") {
@@ -813,7 +893,7 @@ final class GameScene: SKScene {
         return out
     }
 
-    private func buy(_ cost: Int, _ then: () -> Void) {
+    func buy(_ cost: Int, _ then: () -> Void) {
         guard store.d.coins >= cost else { return }
         store.d.coins -= cost
         then()
@@ -822,9 +902,11 @@ final class GameScene: SKScene {
         hapticLight.impactOccurred()
     }
 
-    private func storeCards(_ tab: StoreTab) -> [Card] {
+    func storeCards(_ tab: StoreTab) -> [Card] {
         let coins = store.d.coins
         switch tab {
+        case .worlds:
+            return worldCards()
         case .ufo:
             return UFOTheme.all.map { (t: UFOTheme) -> Card in
                 let icon = Art.ufo(theme: t)
@@ -940,7 +1022,7 @@ final class GameScene: SKScene {
 
     // MARK: - Settings / stats
 
-    private func showSettings() {
+    func showSettings() {
         screen = .settings
         newOverlay(dim: 0.3)
         overlay.addChild(UIK.panel(min(W - 40, 560), H - 40, y: -6))
@@ -985,7 +1067,7 @@ final class GameScene: SKScene {
 
     // MARK: - Game flow
 
-    private func clearEntities() {
+    func clearEntities() {
         for n in creatures { n.removeFromParent() }
         for n in obstacles { n.removeFromParent() }
         for n in coins { n.removeFromParent() }
@@ -996,7 +1078,7 @@ final class GameScene: SKScene {
         creatures = []; obstacles = []; coins = []; pickups = []; decals = []; missiles = []; flocks = []
     }
 
-    private func resetWorld() {
+    func resetWorld() {
         clearEntities()
         camX = 0
         ufo.removeAllActions()
@@ -1025,7 +1107,7 @@ final class GameScene: SKScene {
         spawnWorld(menu: true)
     }
 
-    private func startGame() {
+    func startGame() {
         newOverlay()
         resetWorld()
         clearEntities()
@@ -1058,6 +1140,7 @@ final class GameScene: SKScene {
         health = maxHealth
         rebuildHealthBars()
         tutorial = store.d.runs < 2
+        resetExtras()
 
         secondChance = false
         if runCfg.healthPack && store.d.healthPacks > 0 { store.d.healthPacks -= 1; secondChance = true }
@@ -1110,7 +1193,7 @@ final class GameScene: SKScene {
         updateHUD()
     }
 
-    private func pauseGame() {
+    func pauseGame() {
         guard screen == .playing else { return }
         screen = .paused
         touching = false
@@ -1140,8 +1223,19 @@ final class GameScene: SKScene {
         }
     }
 
-    private func finishRun(quit: Bool = false) {
+    func finishRun(quit: Bool = false) {
         store.d.coins += runCoins
+        store.d.coinsEarnedTotal = (store.d.coinsEarnedTotal ?? 0) + runCoins
+        store.mission(.distance, best: distance)
+        for c in creatures { c.aimLine?.removeFromParent() }
+        endSearchlight()
+        for f in flyers { f.removeFromParent() }
+        flyers = []
+        bossNode?.removeFromParent()
+        bossNode = nil
+        bossTank = nil
+        setText(bossLabel, "")
+        rainNode.particleBirthRate = 0
         store.d.runs += 1
         store.d.totalAbducted += abducted
         let newBest = score > store.d.bestScore
@@ -1165,7 +1259,7 @@ final class GameScene: SKScene {
         overlay.addChild(UIK.label("Score: \(UIK.coins(score))", size: 18, y: ph / 2 - 106, shadow: nil))
         addButton("PLAY AGAIN", x: 0, y: -ph * 0.06, w: 220, h: 40, fontSize: 30, plain: true) { [weak self] in self?.startGame() }
         addButton("STORE", x: 0, y: -ph * 0.06 - 44, w: 160, h: 40, fontSize: 30, plain: true) { [weak self] in self?.showStore(.powers) }
-        addButton("MAIN MENU", x: 0, y: -ph * 0.06 - 88, w: 220, h: 40, fontSize: 30, plain: true) { [weak self] in self?.showMenu() }
+        addButton("MAIN MENU", x: 0, y: -ph * 0.06 - 88, w: 220, h: 40, fontSize: 30, plain: true) { [weak self] in self?.awardsThenMenu() }
     }
 
     // MARK: - Input (relative drag moves the beam in 2D, like the original)
@@ -1191,7 +1285,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func slideTo(_ y: CGFloat) {
+    func slideTo(_ y: CGFloat) {
         let hs = min(1.25, max(0.85, H / 390))
         let sh = H * 0.36
         let bottom = sliderRect.midY - sh / 2 + 34 * hs
@@ -1215,7 +1309,7 @@ final class GameScene: SKScene {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false; sliding = false }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { touching = false; sliding = false }
 
-    private func clampTarget() {
+    func clampTarget() {
         target.x = max(sideInset + W * 0.08, min(W * 0.96, target.x))
         target.y = max(sy(dMin + 0.02), min(sy(dMax - 0.05), target.y))
     }
@@ -1243,7 +1337,7 @@ final class GameScene: SKScene {
     }
 
     /// Menu background: the saucer cruises and beams things up on its own.
-    private func attractStep(_ dt: CGFloat) {
+    func attractStep(_ dt: CGFloat) {
         curSpeed += (8 - curSpeed) * min(1, dt)
         let dx = curSpeed * Tuning.unit * dt
         camX += dx
@@ -1264,15 +1358,15 @@ final class GameScene: SKScene {
         drawBeam()
     }
 
-    private var beamRadiusWorld: CGFloat {
+    var beamRadiusWorld: CGFloat {
         return power == .rampage ? Tuning.beamRadius * Tuning.rampageRadiusFactor : Tuning.beamRadius
     }
 
-    private var multiplier: Int {
+    var multiplier: Int {
         return Tuning.streakMult[level] + (store.upgradedMultiplier ? 1 : 0)
     }
 
-    private func step(_ dt: CGFloat) {
+    func step(_ dt: CGFloat) {
         elapsed += dt
         if autoplay && status == .play {
             let pool = creatures.filter { !$0.lifting && sx($0.gx, $0.gd) > W * 0.35 && sx($0.gx, $0.gd) < W * 0.95 }
@@ -1307,7 +1401,8 @@ final class GameScene: SKScene {
             curSpeed *= max(0, 1 - dt * 2)
         }
 
-        let dx = curSpeed * Tuning.unit * dt
+        let wdt = dt * worldRate
+        let dx = curSpeed * Tuning.unit * wdt
         camX += dx
         scrollBackground(dx)
         if status != .dead {
@@ -1320,12 +1415,13 @@ final class GameScene: SKScene {
             moveUFO(dt, menu: false)
         }
 
-        manageStates(dt)
+        manageStates(wdt)
         spawnWorld(menu: false)
-        updateWorld(dt, playing: true)
+        updateWorld(wdt, playing: true)
         drawBeam()
         checkBeamCollisions(dt)
-        updateMissiles(dt)
+        updateMissiles(wdt)
+        extrasStep(dt)
 
         if invincible > 0 { invincible -= dt }
         if damageTimer > 0 {
@@ -1353,7 +1449,7 @@ final class GameScene: SKScene {
     }
 
     /// AlignToBeam: the saucer trails the beam point with a soft delay and tilts toward it.
-    private func moveUFO(_ dt: CGFloat, menu: Bool) {
+    func moveUFO(_ dt: CGFloat, menu: Bool) {
         beamPt.x += (target.x - beamPt.x) * min(1, dt * 18)
         beamPt.y += (target.y - beamPt.y) * min(1, dt * 18)
         let tD = depth(atY: beamPt.y)
@@ -1361,7 +1457,7 @@ final class GameScene: SKScene {
 
         let far = (tD - dMin) / (dMax - dMin)
         let wantX = max(W * 0.2, min(W * 0.82, beamPt.x + W * 0.03))
-        let wantY = H * (0.6 + 0.03 * (1 - far))
+        let wantY = H * (0.55 + 0.12 * far)
         let oldX = ufoPos.x
         let k = min(1, dt * (status == .intro && !menu ? 2.2 : 3.2))
         ufoPos.x += (wantX - ufoPos.x) * k
@@ -1372,19 +1468,20 @@ final class GameScene: SKScene {
         ufoArt.zRotation += (lean - ufoArt.zRotation) * min(1, dt * 6)
     }
 
-    private var ufoBottom: CGPoint {
+    var ufoBottom: CGPoint {
         return CGPoint(x: ufo.position.x + sin(-ufoArt.zRotation) * 25 * ufoScale, y: ufo.position.y - 25 * ufoScale)
     }
 
-    private var beamVisible: Bool {
+    var beamVisible: Bool {
         if screen == .playing || screen == .paused { return beamOn && status == .play }
         return beamOn
     }
 
-    private func drawBeam() {
+    func drawBeam() {
         if !beamVisible {
             for n in [beamSprite, beamInner, landing, landing2] { n.isHidden = true }
             beamDust.particleBirthRate = 0
+            drawTwin(base: .white)
             beamGlow.path = nil
             beamCore.path = nil
             beamRing.path = nil
@@ -1444,6 +1541,7 @@ final class GameScene: SKScene {
         beamDust.particleSpeedRange = len * 0.3
         beamDust.particlePositionRange = CGVector(dx: r * 1.4, dy: r * 0.4)
         beamDust.particleColor = base.darker(1.5)
+        drawTwin(base: base)
 
         for i in 0..<sparkles.count {
             var sp = sparkles[i]
@@ -1462,7 +1560,7 @@ final class GameScene: SKScene {
 
     // MARK: - Difficulty (GroundManager state cycle)
 
-    private func manageStates(_ dt: CGFloat) {
+    func manageStates(_ dt: CGFloat) {
         guard status == .play, !tutorialActive else { return }
         stateTimer -= dt
         if stateTimer <= 0 {
@@ -1499,14 +1597,16 @@ final class GameScene: SKScene {
         }
     }
 
-    private var tutorialActive: Bool { return tutorial && elapsed < 14 }
+    var tutorialActive: Bool { return tutorial && elapsed < 14 }
 
-    private func spawnVehicle() {
+    func spawnVehicle(forced: ObKind? = nil) {
         var pool: [ObKind] = [.car, .car, .car, .truck]
         if distance >= Tuning.fireTruckFrom { pool.append(.fireTruck) }
         if distance >= Tuning.policeFrom { pool += [.police, .police] }
         if distance >= Tuning.jeepFrom { pool += [.jeep, .jeep] }
-        let k = pool.randomElement() ?? .car
+        if biome == .city { pool += [.car, .car, .police, .fireTruck] }
+        if biome == .desert { pool = [.jeep, .jeep, .truck, .truck, .car] }
+        let k = forced ?? (pool.randomElement() ?? .car)
         let lane: CGFloat = Bool.random() ? 0.05 : -0.05
         let fromRight = Bool.random() || k == .police
         let rd0 = roadD(camX)
@@ -1528,9 +1628,9 @@ final class GameScene: SKScene {
 
     // MARK: - Spawning (ground space)
 
-    private var spawnEdge: CGFloat { return camX + (W * 0.5 + 60) * dMax / P }
+    var spawnEdge: CGFloat { return camX + (W * 0.5 + 60) * dMax / P }
 
-    private func spawnWorld(menu: Bool) {
+    func spawnWorld(menu: Bool) {
         let limit = spawnEdge
 
         // grass, flowers, puddles and dirt patches for a sense of motion
@@ -1539,7 +1639,7 @@ final class GameScene: SKScene {
             dec.gx = nextTuftX + CGFloat.random(in: 0...30)
             dec.gd = CGFloat.random(in: dMin...(dMax + 0.15))
             let roll = Int.random(in: 0..<100)
-            if roll < 7 {
+            if roll < 7 && biome != .desert {
                 dec.addChild(SKSpriteNode(texture: Painter.puddle(), size: CGSize(width: 100, height: 100)))
                 dec.flat = true
                 dec.worldW = CGFloat.random(in: 50...120)
@@ -1555,7 +1655,7 @@ final class GameScene: SKScene {
                 rk.setScale(CGFloat.random(in: 0.5...1.0))
                 dec.addChild(rk)
             } else {
-                dec.addChild(Art.tuft())
+                dec.addChild(biomeDecor())
             }
             world.addChild(dec)
             decals.append(dec)
@@ -1563,7 +1663,7 @@ final class GameScene: SKScene {
         }
         // continuous fences: one along the far edge of the field, one in the foreground
         while nextFenceX < limit {
-            for d in [CGFloat(1.02), CGFloat(3.25)] {
+            for d in [CGFloat(1.02), CGFloat(3.25)] where biome == .farm {
                 let f = Decal()
                 let sp = SKSpriteNode(texture: Painter.fence(), size: CGSize(width: 96, height: 36))
                 sp.anchorPoint = CGPoint(x: 0.5, y: 0.1)
@@ -1577,7 +1677,12 @@ final class GameScene: SKScene {
         }
         // farm buildings on the horizon (scenery only)
         while nextFarX < limit {
-            let kinds: [ObKind] = [.house, .windmill, .silo, .barn, .windmill]
+            let kinds: [ObKind]
+            switch biome {
+            case .farm: kinds = [.house, .windmill, .silo, .barn, .windmill]
+            case .city: kinds = [.building, .building, .lamp]
+            case .desert: kinds = [.palm, .tent, .palm]
+            }
             let k = kinds.randomElement() ?? .house
             let f = Decal()
             f.addChild(Art.obstacle(k))
@@ -1585,7 +1690,7 @@ final class GameScene: SKScene {
             f.gd = 3.4
             world.addChild(f)
             decals.append(f)
-            if k == .silo || k == .windmill, Bool.random() {
+            if biome == .farm && (k == .silo || k == .windmill) && Bool.random() {
                 let g = Decal()
                 g.addChild(Art.obstacle(k == .silo ? .windmill : .silo))
                 g.gx = nextFarX + 70
@@ -1593,7 +1698,7 @@ final class GameScene: SKScene {
                 world.addChild(g)
                 decals.append(g)
             }
-            nextFarX += CGFloat.random(in: 900...1700)
+            nextFarX += biome == .city ? CGFloat.random(in: 200...420) : CGFloat.random(in: 900...1700)
         }
 
         while nextGroupX < limit {
@@ -1638,7 +1743,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func addSign(_ lines: [String], x: CGFloat, d: CGFloat, wide: Bool = false) {
+    func addSign(_ lines: [String], x: CGFloat, d: CGFloat, wide: Bool = false) {
         let dec = Decal()
         dec.addChild(Art.sign(lines, wide: wide || lines.count > 1))
         dec.gx = x
@@ -1647,7 +1752,7 @@ final class GameScene: SKScene {
         decals.append(dec)
     }
 
-    private func pick(_ k: Kind) -> Int? {
+    func pick(_ k: Kind) -> Int? {
         let v = store.unlockedVariants(k)
         guard !v.isEmpty else { return nil }
         // rarer variants appear less often
@@ -1657,9 +1762,19 @@ final class GameScene: SKScene {
         return v.contains(0) ? 0 : v[0]
     }
 
-    private func spawnGroup(at x: CGFloat) {
+    func spawnGroup(at x: CGFloat) {
+        if biome == .city { spawnCityGroup(at: x); return }
+        if biome == .desert { spawnDesertGroup(at: x); return }
         let roll = Int.random(in: 0..<100)
         let d = CGFloat.random(in: (dMin + 0.1)...(dMax - 0.2))
+        if screen == .playing && distance > 300 && Int.random(in: 0..<100) < 3 {
+            spawnRareSheep(at: x, d: d)
+            return
+        }
+        if screen == .playing && distance > 600 && Int.random(in: 0..<100) < 7 {
+            spawnCreature(.hunter, variant: 0, x: x, d: d)
+            return
+        }
         if roll < 38 {
             // a flock of sheep (Boids) — sometimes with a herding dog
             let flock = Flock(x: x, d: d)
@@ -1681,7 +1796,9 @@ final class GameScene: SKScene {
             }
         } else if roll < 55 {
             for i in 0..<Int.random(in: 1...2) {
-                if let v = pick(.cow) { spawnCreature(.cow, variant: v, x: x + CGFloat(i) * 60, d: d + CGFloat(i) * 0.15) }
+                if screen == .playing && distance > 800 && Int.random(in: 0..<100) < 5 {
+                    spawnNukeCow(at: x + CGFloat(i) * 60, d: d + CGFloat(i) * 0.15)
+                } else if let v = pick(.cow) { spawnCreature(.cow, variant: v, x: x + CGFloat(i) * 60, d: d + CGFloat(i) * 0.15) }
             }
         } else if roll < 68 {
             // pigs wallowing in a mud patch
@@ -1714,8 +1831,21 @@ final class GameScene: SKScene {
         }
     }
 
-    private func spawnStaticCluster(at x: CGFloat) {
+    func spawnStaticCluster(at x: CGFloat) {
         if tutorialActive { return }
+        if biome == .farm && distance > 400 && Int.random(in: 0..<100) < 14 {
+            var d = CGFloat.random(in: (dMin + 0.15)...(dMax - 0.1))
+            if abs(d - roadD(x)) < 0.2 { d = max(dMin + 0.1, d - 0.3) }
+            spawnPowerline(at: x, d: d)
+            return
+        }
+        if let bk = biomeObstacle() {
+            var d = CGFloat.random(in: (dMin + 0.1)...(dMax - 0.05))
+            if abs(d - roadD(x)) < 0.22 { d = roadD(x) + (d < roadD(x) ? -0.3 : 0.3) }
+            d = max(dMin + 0.08, min(dMax, d))
+            spawnObstacle(bk, x: x, d: d)
+            return
+        }
         var pool: [ObKind] = [.fence, .fence, .fence, .barrels, .shed]
         if distance > 200 { pool += [.silo, .house, .windmill] }
         if distance > 700 { pool += [.barn, .silo, .shed] }
@@ -1734,7 +1864,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func spawnCoinPattern(at x: CGFloat) {
+    func spawnCoinPattern(at x: CGFloat) {
         let d0 = CGFloat.random(in: (dMin + 0.1)...(dMax - 0.35))
         let pattern = Int.random(in: 0..<4)
         var pts: [(CGFloat, CGFloat)] = []
@@ -1761,7 +1891,7 @@ final class GameScene: SKScene {
     }
 
     @discardableResult
-    private func spawnCreature(_ kind: Kind, variant: Int, x: CGFloat, d: CGFloat) -> Creature {
+    func spawnCreature(_ kind: Kind, variant: Int, x: CGFloat, d: CGFloat) -> Creature {
         let c = Creature(kind: kind, variant: variant, body: Art.creature(kind, variant: variant))
         c.gx = x
         c.gd = max(dMin + 0.02, min(dMax - 0.05, d))
@@ -1775,7 +1905,7 @@ final class GameScene: SKScene {
     }
 
     @discardableResult
-    private func spawnObstacle(_ kind: ObKind, x: CGFloat, d: CGFloat) -> Obstacle {
+    func spawnObstacle(_ kind: ObKind, x: CGFloat, d: CGFloat) -> Obstacle {
         let o = Obstacle(kind: kind)
         o.addChild(Art.obstacle(kind))
         o.gx = x
@@ -1787,13 +1917,13 @@ final class GameScene: SKScene {
 
     // MARK: - World update (AI + projection)
 
-    private func project(_ n: GroundThing) {
+    func project(_ n: GroundThing) {
         n.position = CGPoint(x: sx(n.gx, n.gd), y: sy(n.gd))
         n.setScale(sc(n.gd))
         n.zPosition = 400 - n.gd * 100
     }
 
-    private func updateWorld(_ dt: CGFloat, playing: Bool) {
+    func updateWorld(_ dt: CGFloat, playing: Bool) {
         // winding dirt road
         let left = camX - (W * 0.5 + 40) * dMax / P
         let right = spawnEdge
@@ -1840,7 +1970,7 @@ final class GameScene: SKScene {
         cleanup()
     }
 
-    private func groundDist(_ x: CGFloat, _ d: CGFloat, toScreen T: CGPoint) -> CGFloat {
+    func groundDist(_ x: CGFloat, _ d: CGFloat, toScreen T: CGPoint) -> CGFloat {
         // ellipse test in screen space around the beam point
         let r = beamRadiusWorld * sc(depth(atY: T.y))
         let dx = (sx(x, d) - T.x) / r
@@ -1848,12 +1978,12 @@ final class GameScene: SKScene {
         return hypot(dx, dy)
     }
 
-    private var beamActive: Bool {
+    var beamActive: Bool {
         if screen == .playing { return beamOn && status == .play }
         return beamOn
     }
 
-    private func updateCreatures(_ dt: CGFloat) {
+    func updateCreatures(_ dt: CGFloat) {
         let T = beamPt
         let tD = depth(atY: T.y)
         let tX = worldX(atX: T.x, d: tD)
@@ -1927,11 +2057,15 @@ final class GameScene: SKScene {
                     glow.run(.sequence([.group([.scale(to: 3, duration: 0.15), .fadeOut(withDuration: 0.15)]), .removeFromParent()]))
                 }
             }
+            if c.kind == .hunter { updateHunter(c, dt) }
             project(c)
 
             // the beam grabs anything inside its circle
-            if beamActive && groundDist(c.gx, c.gd, toScreen: T) < 1 {
+            let hitBeam = beamActive ? beamHit(c.gx, c.gd, 1) : 0
+            if hitBeam > 0 {
+                c.onTwin = hitBeam == 2
                 startLift(c)
+                registerGrab(c)
                 if screen == .playing {
                     sound.laserGrab()
                     switch c.kind {
@@ -1946,19 +2080,21 @@ final class GameScene: SKScene {
         }
     }
 
-    private func startLift(_ n: GroundThing) {
+    func startLift(_ n: GroundThing) {
         n.lifting = true
         n.liftT = 0
         n.liftScale = sc(n.gd)
-        n.liftOffset = CGPoint(x: n.position.x - beamPt.x, y: n.position.y - beamPt.y)
+        let base = n.onTwin ? twinPt : beamPt
+        n.liftOffset = CGPoint(x: n.position.x - base.x, y: n.position.y - base.y)
         n.removeFromParent()
         liftLayer.addChild(n)
         n.zPosition = 0
     }
 
     /// Lifted things ride up the beam to the saucer, spinning and shrinking.
-    private func updateLifting(_ dt: CGFloat) {
-        let T = beamPt
+    func updateLifting(_ dt: CGFloat) {
+        let T0 = beamPt
+        let T1 = twinPt
         let U = ufoBottom
         var done: [GroundThing] = []
         for case let n as GroundThing in liftLayer.children {
@@ -1972,6 +2108,7 @@ final class GameScene: SKScene {
             }
             n.liftT = min(1, n.liftT + dt / dur)
             let t = n.liftT
+            let T = n.onTwin && power == .twin ? T1 : T0
             let e = pow(t, 1.5)
             let swirl = sin(clock * 9 + n.spin * 4) * 10 * ws * (1 - t)
             n.position = CGPoint(x: T.x + (U.x - T.x) * e + n.liftOffset.x * (1 - t) + swirl,
@@ -1986,7 +2123,7 @@ final class GameScene: SKScene {
         for n in done { collect(n) }
     }
 
-    private func collect(_ n: GroundThing) {
+    func collect(_ n: GroundThing) {
         n.removeFromParent()
         let U = ufoBottom
         if let c = n as? Creature {
@@ -1997,6 +2134,7 @@ final class GameScene: SKScene {
             abducted += 1
             bumpStreak()
             scorePopup(pts, at: CGPoint(x: U.x + 18 * ws, y: U.y - 6 * ws))
+            onCollected(c)
             sound.play("collect", volume: 0.6, minGap: 0.08)
             if clock - lastHaptic > 0.08 { lastHaptic = clock; hapticLight.impactOccurred() }
         } else if let c = n as? Coin {
@@ -2004,6 +2142,7 @@ final class GameScene: SKScene {
             guard screen == .playing else { return }
             runCoins += 1
             score += multiplier
+            missionDone(store.mission(.coins, add: 1))
             bumpStreak()
             sound.play("coin", volume: 0.55, minGap: 0.05)
         } else if let p = n as? Pickup {
@@ -2014,13 +2153,14 @@ final class GameScene: SKScene {
                 power = p.type
                 powerTimer = p.type.durations[lvl - 1]
                 store.d.powerupsCollected += 1
+                missionDone(store.mission(.powerups, add: 1))
                 banner(p.type.title.uppercased() + "!")
                 sound.play("powerup")
             }
         }
     }
 
-    private func bumpStreak() {
+    func bumpStreak() {
         sinceCollect = 0
         collectedStreak += 1
         while level + 1 < Tuning.streakCounts.count && collectedStreak >= Tuning.streakCounts[level + 1] {
@@ -2031,14 +2171,14 @@ final class GameScene: SKScene {
         }
     }
 
-    private func dropLevel() {
+    func dropLevel() {
         guard level > 0 else { return }
         level -= 1
         collectedStreak = Tuning.streakCounts[level]
         streakSpeed = Tuning.streakSpeed[level]
     }
 
-    private func updateCoins(_ dt: CGFloat) {
+    func updateCoins(_ dt: CGFloat) {
         let T = beamPt
         let tD = depth(atY: T.y)
         let tX = worldX(atX: T.x, d: tD)
@@ -2053,24 +2193,28 @@ final class GameScene: SKScene {
                 }
             }
             project(c)
-            if beamActive && screen == .playing && groundDist(c.gx, c.gd, toScreen: T) < 1.15 {
+            let hb = beamActive && screen == .playing ? beamHit(c.gx, c.gd, 1.15) : 0
+            if hb > 0 {
+                c.onTwin = hb == 2
                 startLift(c)
             }
         }
     }
 
-    private func updatePickups(_ dt: CGFloat) {
+    func updatePickups(_ dt: CGFloat) {
         let T = beamPt
         for p in pickups where !p.lifting {
             project(p)
-            if beamActive && screen == .playing && groundDist(p.gx, p.gd, toScreen: T) < 1.2 {
+            let hb = beamActive && screen == .playing ? beamHit(p.gx, p.gd, 1.2) : 0
+            if hb > 0 {
+                p.onTwin = hb == 2
                 sound.laserGrab()
                 startLift(p)
             }
         }
     }
 
-    private func updateObstacles(_ dt: CGFloat, playing: Bool) {
+    func updateObstacles(_ dt: CGFloat, playing: Bool) {
         let U = ufoBottom
         for o in obstacles where !o.dead {
             if o.hitCooldown > 0 { o.hitCooldown -= dt }
@@ -2079,6 +2223,8 @@ final class GameScene: SKScene {
                 o.gd = roadD(o.gx) + o.lane
             }
             project(o)
+            if o.giant { o.setScale(o.xScale * 2.2) }
+            if o.kind == .powerline && o.span > 0 { updateWire(o) }
             if o.kind.isVehicle && o.vx != 0 {
                 // tilt along the winding road
                 let x0 = o.gx - 30, x1 = o.gx + 30
@@ -2098,7 +2244,7 @@ final class GameScene: SKScene {
                 if o.position.x > 0 && o.position.x < W {
                     o.fireTimer -= dt
                     if o.fireTimer <= 0 {
-                        o.fireTimer = CGFloat.random(in: 2...3.2)
+                        o.fireTimer = o.giant ? CGFloat.random(in: 0.9...1.3) : CGFloat.random(in: 2...3.2)
                         fireMissile(from: o)
                     }
                 }
@@ -2107,14 +2253,23 @@ final class GameScene: SKScene {
     }
 
     /// The beam line hurts when it passes through an obstacle at the same depth.
-    private func checkBeamCollisions(_ dt: CGFloat) {
+    func checkBeamCollisions(_ dt: CGFloat) {
         guard beamActive, status == .play else { return }
         let T = beamPt
         let U = ufoBottom
         let tD = depth(atY: T.y)
         let r = beamRadiusWorld * sc(tD)
         for o in obstacles where !o.dead && o.hitCooldown <= 0 {
-            let s = sc(o.gd)
+            if o.kind == .powerline && o.span > 0 && beamCrossesWire(o, U: U, T: T, tD: tD) {
+                if invincible <= 0 && damageTimer <= 0 {
+                    o.hitCooldown = 1.5
+                    takeDamage(1, byVehicle: false)
+                    if let e = wireEnds(o) { sparksAt(CGPoint(x: (e.0.x + e.1.x) / 2, y: (e.0.y + e.1.y) / 2)) }
+                    sound.play("hit", volume: 0.6)
+                }
+                continue
+            }
+            let s = sc(o.gd) * (o.giant ? 2.2 : 1)
             let box = o.kind.hitBox
             let hw = box.0, hh = box.1
             let rect = CGRect(x: o.position.x - hw * s * 0.85, y: o.position.y, width: hw * s * 1.7, height: hh * s * 0.9)
@@ -2143,8 +2298,12 @@ final class GameScene: SKScene {
         }
     }
 
-    private func smash(_ o: Obstacle) {
+    func smash(_ o: Obstacle) {
         o.dead = true
+        if screen == .playing { missionDone(store.mission(.smash, add: 1)) }
+        o.wire?.removeFromParent()
+        o.wire = nil
+        o.span = 0
         explode(o)
         let pts = 50 * multiplier
         score += pts
@@ -2155,7 +2314,7 @@ final class GameScene: SKScene {
         hapticHeavy.impactOccurred()
     }
 
-    private func explode(_ o: Obstacle) {
+    func explode(_ o: Obstacle) {
         let p = CGPoint(x: o.position.x, y: o.position.y + 10 * sc(o.gd))
         let base: UIColor
         switch o.kind {
@@ -2188,7 +2347,7 @@ final class GameScene: SKScene {
         }
     }
 
-    private func boom(at p: CGPoint, size: CGFloat) {
+    func boom(at p: CGPoint, size: CGFloat) {
         let c = Art.circ(max(8, size), UIColor.orange.withAlphaComponent(0.9), p.x, p.y)
         c.zPosition = 20
         fx.addChild(c)
@@ -2199,7 +2358,7 @@ final class GameScene: SKScene {
         c2.run(.sequence([.group([.scale(to: 2.2, duration: 0.2), .fadeOut(withDuration: 0.25)]), .removeFromParent()]))
     }
 
-    private func sparksAt(_ p: CGPoint) {
+    func sparksAt(_ p: CGPoint) {
         for _ in 0..<8 {
             let s = Art.circ(2 * ws, Art.rgb(1, 0.85, 0.4), p.x, p.y)
             s.zPosition = 22
@@ -2211,7 +2370,7 @@ final class GameScene: SKScene {
 
     // MARK: - Missiles (tanks)
 
-    private func fireMissile(from o: Obstacle) {
+    func fireMissile(from o: Obstacle) {
         let m = Missile()
         m.addChild(Art.missile())
         m.setScale(ws)
@@ -2229,14 +2388,14 @@ final class GameScene: SKScene {
         sound.play("missile", volume: 0.7)
     }
 
-    private func updateMissiles(_ dt: CGFloat) {
+    func updateMissiles(_ dt: CGFloat) {
         var dead: [Missile] = []
         for m in missiles {
             m.position.x += m.v.dx * dt
             m.position.y += m.v.dy * dt
             m.life -= dt
             if m.life <= 0 || m.position.y > H + 40 { dead.append(m); continue }
-            if status != .dead && hypot(m.position.x - ufo.position.x, m.position.y - ufo.position.y) < 32 * ws {
+            if status != .dead && hypot(m.position.x - ufo.position.x, m.position.y - ufo.position.y) < max(32 * ws, 60 * ufoScale) {
                 dead.append(m)
                 takeDamage(2, byVehicle: true)
             }
@@ -2250,9 +2409,18 @@ final class GameScene: SKScene {
 
     // MARK: - Damage & death
 
-    private func takeDamage(_ amount: Int, byVehicle: Bool) {
+    func takeDamage(_ amount: Int, byVehicle: Bool) {
         guard status == .play || status == .boost else { return }
         if invincible > 0 || damageTimer > 0 { return }
+        if power == .shield {
+            power = nil
+            powerTimer = 0
+            invincible = 1.2
+            sound.play("powerup", volume: 0.6)
+            popup("SHIELD!", at: CGPoint(x: ufo.position.x, y: ufo.position.y + 40 * ws), color: Art.rgb(0.5, 0.85, 1))
+            return
+        }
+        lastHitDistance = distance
         health -= 1   // any hit costs exactly one bar
         if tutorialActive { health = max(1, health) }
         damageTimer = Tuning.damageTime
@@ -2280,13 +2448,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func shake() {
+    func shake() {
         let a: CGFloat = 6 * ws
         world.run(.sequence([.moveBy(x: a, y: a * 0.5, duration: 0.03), .moveBy(x: -2 * a, y: -a, duration: 0.05),
                              .moveBy(x: a, y: a * 0.5, duration: 0.03)]))
     }
 
-    private func die() {
+    func die() {
         status = .dead
         beamOn = false
         touching = false
@@ -2306,7 +2474,7 @@ final class GameScene: SKScene {
         store.save()
     }
 
-    private func stepDeath(_ dt: CGFloat) {
+    func stepDeath(_ dt: CGFloat) {
         let floorY = sy(1.55)
         deathV.dy -= 900 * ws * dt
         ufoPos.x += deathV.dx * dt
@@ -2344,11 +2512,11 @@ final class GameScene: SKScene {
 
     // MARK: - Cleanup
 
-    private func offLeft(_ n: GroundThing) -> Bool {
+    func offLeft(_ n: GroundThing) -> Bool {
         return sx(n.gx, n.gd) < -150 * ws
     }
 
-    private func cleanup() {
+    func cleanup() {
         creatures.removeAll { c in
             if !c.lifting && (offLeft(c) || sx(c.gx, c.gd) > W * 4) { c.removeFromParent(); return true }
             return false
@@ -2361,7 +2529,11 @@ final class GameScene: SKScene {
                 if x > W * 3 { o.removeFromParent(); return true }
                 return false
             }
-            if x < -150 * ws { o.removeFromParent(); return true }
+            if x < -150 * ws && !(o.kind == .powerline && o.span > 0 && (o.pole2.map { sx(($0 as? Obstacle)?.gx ?? 0, o.gd) > -150 * ws } ?? false)) {
+                o.wire?.removeFromParent()
+                o.removeFromParent()
+                return true
+            }
             return false
         }
         coins.removeAll { c in
@@ -2380,17 +2552,17 @@ final class GameScene: SKScene {
 
     // MARK: - Popups
 
-    private var lastHaptic: CGFloat = 0
-    private var ringFrac: CGFloat = -1
-    private var shownHealth = -1
-    private var shownMax = -1
-    private var comboLabel: SKLabelNode?
-    private var comboValue = 0
-    private var comboTime: CGFloat = -10
+    var lastHaptic: CGFloat = 0
+    var ringFrac: CGFloat = -1
+    var shownHealth = -1
+    var shownMax = -1
+    var comboLabel: SKLabelNode?
+    var comboValue = 0
+    var comboTime: CGFloat = -10
 
     /// Points from creatures arriving close together are added into one "+N" label
     /// instead of making a new label for each sheep (that caused stutters with big flocks).
-    private func scorePopup(_ pts: Int, at p: CGPoint) {
+    func scorePopup(_ pts: Int, at p: CGPoint) {
         if let l = comboLabel, l.parent != nil, clock - comboTime < 0.35 {
             comboValue += pts
             comboTime = clock
@@ -2412,14 +2584,14 @@ final class GameScene: SKScene {
         l.run(.sequence([.group([.moveBy(x: 10, y: 34 * ws, duration: 0.7), .sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.35)])]), .removeFromParent()]))
     }
 
-    private func popup(_ text: String, at p: CGPoint, color: UIColor) {
+    func popup(_ text: String, at p: CGPoint, color: UIColor) {
         let l = UIK.label(text, size: 18 * ws, color: color, font: UIK.heavyItalic, x: p.x, y: p.y, shadow: Art.rgb(0.05, 0.1, 0.25, 0.8))
         l.zPosition = 800
         addChild(l)
         l.run(.sequence([.group([.moveBy(x: 10, y: 34 * ws, duration: 0.7), .sequence([.wait(forDuration: 0.35), .fadeOut(withDuration: 0.35)])]), .removeFromParent()]))
     }
 
-    private func banner(_ text: String) {
+    func banner(_ text: String) {
         let l = UIK.label(text, size: 30, color: UIK.orange, y: H * 0.1, shadow: UIK.orangeDark)
         l.zPosition = 50
         l.setScale(0.4)
