@@ -110,6 +110,7 @@ final class GameScene: SKScene {
     private var curSpeed: CGFloat = 0
     private var distance = 0
     private var boostUntil: CGFloat = 0
+    private var nextSpeedBanner = 1000
     private var score = 0
     private var runCoins = 0
     private var health = 3
@@ -964,6 +965,8 @@ final class GameScene: SKScene {
         abducted = 0
         streakSpeed = 0
         distance = 0
+        nextSpeedBanner = 1000
+        moveSpeed = Tuning.startSpeed
         level = 0
         collectedStreak = 0
         sinceCollect = 0
@@ -1209,7 +1212,13 @@ final class GameScene: SKScene {
         case .intro:
             curSpeed = moveSpeed
         case .play:
-            moveSpeed = min(Tuning.maxSpeed, moveSpeed + Tuning.speedGain * dt)
+            // the saucer speeds up with every point scored (smoothly, with a ceiling)
+            let want = Tuning.startSpeed + Tuning.scoreSpeedMax * (1 - exp(-CGFloat(score) / Tuning.scoreSpeedScale))
+            moveSpeed += (want - moveSpeed) * min(1, dt * 2)
+            if score >= nextSpeedBanner {
+                nextSpeedBanner += 1000
+                banner("SPEED UP!")
+            }
             curSpeed = moveSpeed + streakSpeed
         case .boost:
             curSpeed += (Tuning.boostSpeed - curSpeed) * min(1, dt * 3)

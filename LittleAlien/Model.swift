@@ -50,6 +50,9 @@ enum Tuning {
     static let startSpeed: CGFloat = 12
     static let speedGain: CGFloat = 0.083
     static let maxSpeed: CGFloat = 20
+    /// Extra speed earned from score: start + max * (1 - e^(-score/scale)).
+    static let scoreSpeedMax: CGFloat = 18
+    static let scoreSpeedScale: CGFloat = 3000
     static let boostSpeed: CGFloat = 34
     static let boostDistance: CGFloat = 300
     static let boostInvuln: CGFloat = 3
