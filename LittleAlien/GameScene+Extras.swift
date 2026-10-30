@@ -216,7 +216,8 @@ extension GameScene {
         dawnNode.alpha = 0
         slowTint.alpha = 0
         shieldNode.isHidden = true
-        if biome != .farm { applyBiome(.farm, animated: false) }
+        let startMap = Biome.picked ?? .farm
+        if biome != startMap { applyBiome(startMap, animated: false) }
         store.refreshMissionsIfNeeded()
     }
 
@@ -853,7 +854,7 @@ extension GameScene {
     // MARK: - Biomes
 
     func updateBiome() {
-        guard screen == .playing, status != .dead else { return }
+        guard screen == .playing, status != .dead, Biome.picked == nil else { return }
         let b = Biome.at(distance)
         if b != biome {
             applyBiome(b, animated: true)
@@ -1372,6 +1373,76 @@ extension GameScene {
             startLift(o)
             sound.laserGrab()
         }
+    }
+
+    /// MAPS: pick a fixed map, or AUTO (the map changes as you fly).
+    func showMaps() {
+        screen = .settings
+        newOverlay(dim: 0.3)
+        let pw = min(W - 40, 620)
+        overlay.addChild(UIK.panel(pw, H - 40, y: -6))
+        overlay.addChild(UIK.label("MAPS", size: 26, color: UIK.cyan, y: H / 2 - 44))
+        addButton("BACK", x: -W / 2 + 60, y: -H / 2 + 26, w: 100, h: 36, fontSize: 26, plain: true) { [weak self] in self?.showMenu() }
+        let pick = Biome.picked
+        let opts: [(Biome?, String, String)] = [
+            (nil, "AUTO", "Farm → City → Desert as you fly")
+        ] + [Biome.farm, .city, .desert].map { ($0, $0.name, $0.blurb) }
+        let cw = min((pw - 50) / 4, 140)
+        let ch = min(H * 0.5, 170)
+        for (i, o) in opts.enumerated() {
+            let x = (CGFloat(i) - 1.5) * (cw + 10)
+            let y = H * 0.02
+            let sel = o.0 == pick
+            let card = SKNode()
+            card.position = CGPoint(x: x, y: y)
+            card.zPosition = 2
+            let frame = SKShapeNode(rectOf: CGSize(width: cw, height: ch), cornerRadius: 12)
+            frame.fillColor = sel ? Art.rgb(0.12, 0.4, 0.25) : Art.rgb(0.12, 0.1, 0.25)
+            frame.strokeColor = sel ? UIK.green : UIColor(white: 1, alpha: 0.25)
+            frame.lineWidth = sel ? 3 : 1.5
+            card.addChild(frame)
+            // little preview of the ground
+            let pv = CGSize(width: cw - 14, height: ch * 0.42)
+            let tex: SKTexture
+            if let b = o.0 { tex = b == .farm ? Painter.field(pv) : Painter.ground(pv, biome: b) }
+            else { tex = Painter.field(pv) }
+            let img = SKSpriteNode(texture: tex, size: pv)
+            img.position = CGPoint(x: 0, y: ch * 0.2)
+            if o.0 == nil {
+                // AUTO preview: farm / city / desert in three strips
+                img.removeFromParent()
+                for (j, b) in [Biome.farm, .city, .desert].enumerated() {
+                    let sz = CGSize(width: pv.width / 3, height: pv.height)
+                    let t = b == .farm ? Painter.field(sz) : Painter.ground(sz, biome: b)
+                    let s = SKSpriteNode(texture: t, size: sz)
+                    s.position = CGPoint(x: (CGFloat(j) - 1) * sz.width, y: ch * 0.2)
+                    card.addChild(s)
+                }
+            } else {
+                card.addChild(img)
+            }
+            card.addChild(UIK.label(o.1, size: 15, color: sel ? UIK.green : .white, y: -ch * 0.08))
+            let words = o.2.split(separator: " ")
+            var lines: [String] = [""]
+            for w in words {
+                if (lines[lines.count - 1] + " " + w).count > 17 { lines.append(String(w)) }
+                else { lines[lines.count - 1] += (lines[lines.count - 1].isEmpty ? "" : " ") + w }
+            }
+            for (k, l) in lines.prefix(3).enumerated() {
+                card.addChild(UIK.label(l, size: 10, color: UIColor(white: 1, alpha: 0.75), y: -ch * 0.2 - CGFloat(k) * 13, shadow: nil))
+            }
+            overlay.addChild(card)
+            addButton(sel ? "✓ SELECTED" : "CHOOSE", x: x, y: y - ch / 2 + 18, w: cw - 20, h: 26,
+                      color: sel ? UIK.green : UIK.orange, fontSize: 12) { [weak self] in
+                guard let self = self else { return }
+                Biome.picked = o.0
+                let b = o.0 ?? .farm
+                if self.biome != b { self.applyBiome(b, animated: false) }
+                self.showMaps()
+            }
+        }
+        overlay.addChild(UIK.label(pick == nil ? "The map changes every 5,000 m" : "Every run stays on \(pick!.name.lowercased())",
+                                   size: 12, color: UIColor(white: 1, alpha: 0.6), y: -H / 2 + 30, shadow: nil))
     }
 
     func showCheats() {

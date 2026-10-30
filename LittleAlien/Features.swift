@@ -268,6 +268,23 @@ enum Biome: Int {
         return .farm
     }
 
+    /// The map the player picked in MAPS (nil = AUTO: farm → city → desert as you fly).
+    static var picked: Biome? {
+        get {
+            let v = UserDefaults.standard.object(forKey: "mapPick") as? Int ?? -1
+            return Biome(rawValue: v)
+        }
+        set { UserDefaults.standard.set(newValue?.rawValue ?? -1, forKey: "mapPick") }
+    }
+
+    var blurb: String {
+        switch self {
+        case .farm: return "Barns, cows, sheep and the grumpy farmer"
+        case .city: return "Streets, cars, police and lots of people"
+        case .desert: return "Dunes, camels, tents and jeeps"
+        }
+    }
+
     var name: String {
         switch self {
         case .farm: return "THE FARM"

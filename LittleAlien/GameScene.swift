@@ -393,6 +393,7 @@ final class GameScene: SKScene {
                 case "collection": self.showAwards(tab: 1)
                 case "friends": self.showFriends()
                 case "worlds": self.showStore(.worlds)
+                case "maps": self.showMaps()
                 default: break
                 }
             }
@@ -787,6 +788,7 @@ final class GameScene: SKScene {
         let items: [(String, () -> Void)] = [
             ("STORE", { [weak self] in self?.showStore(.powers) }),
             ("THEMES", { [weak self] in self?.showStore(.ufo) }),
+            ("MAPS", { [weak self] in self?.showMaps() }),
             ("MISSIONS" + badge, { [weak self] in self?.showMissions() }),
             ("AWARDS", { [weak self] in self?.showAwards() }),
             ("FRIENDS", { [weak self] in self?.showFriends() }),
