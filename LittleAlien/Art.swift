@@ -342,9 +342,9 @@ enum Art {
         case 3: tex = Painter.streetSign("jordan", arabic: "شارع الأردن", english: "Jordan Street", arrowLeft: false)
         default: tex = Painter.streetSign("beirut", arabic: "شارع بيروت", english: "Beirut Street", arrowLeft: true)
         }
-        let pw: CGFloat = 176
+        let pw: CGFloat = 236
         let ph = pw * tex.size().height / max(1, tex.size().width)
-        let postH: CGFloat = 62
+        let postH: CGFloat = 66
         let grey = rgb(0.55, 0.58, 0.62)
         for px in [-pw * 0.3, pw * 0.3] {
             let post = rect(6, postH + ph * 0.6, grey, px, (postH + ph * 0.6) / 2, r: 2, stroke: rgb(0.2, 0.22, 0.26))

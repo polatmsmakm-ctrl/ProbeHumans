@@ -400,6 +400,14 @@ final class GameScene: SKScene {
                 case "worlds": self.showStore(.worlds)
                 case "maps": self.showMaps()
                 case "settings": self.showSettings()
+                case "signs":   // screenshot check of every street sign
+                    self.newOverlay(dim: 0.5)
+                    for i in 0..<Art.roadSignCount {
+                        let n = Art.roadSign(i)
+                        n.setScale(min(1, self.W / 1350))
+                        n.position = CGPoint(x: (CGFloat(i % 3) - 1) * self.W * 0.31, y: i < 3 ? 0 : -self.H * 0.45)
+                        self.overlay.addChild(n)
+                    }
                 default: break
                 }
             }
