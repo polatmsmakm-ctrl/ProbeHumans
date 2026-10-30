@@ -134,7 +134,7 @@ enum Art {
             n.addChild(Painter.sprite(Painter.pig(variant), canvas: cv, foot: CGPoint(x: 30, y: 4)))
         case .camel:
             n.addChild(shadow(64))
-            n.addChild(legs([-18, -10, 12, 20], w: 4.2, h: 26, color: rgb(0.62, 0.46, 0.28), hoof: rgb(0.3, 0.22, 0.14)))
+            n.addChild(legs([-17, -10, 11, 18], w: 5, h: 50, color: rgb(0.66, 0.5, 0.3), hoof: rgb(0.3, 0.22, 0.14)))
             n.addChild(Painter.sprite(Painter.camel(), canvas: CGSize(width: 96, height: 84), foot: CGPoint(x: 44, y: 0)).moved(0, 22))
         case .dog:
             n.addChild(shadow(26))
