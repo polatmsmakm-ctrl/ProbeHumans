@@ -49,7 +49,7 @@ jobs:
           xcrun simctl io "$UDID" screenshot shots/play2.png
           sleep 10
           xcrun simctl io "$UDID" screenshot shots/play3.png
-          for sc in missions awards collection friends worlds maps; do
+          for sc in missions awards collection friends worlds maps settings; do
             xcrun simctl terminate "$UDID" com.rashid.littlealien || true
             xcrun simctl launch "$UDID" com.rashid.littlealien -screen $sc
             sleep 4

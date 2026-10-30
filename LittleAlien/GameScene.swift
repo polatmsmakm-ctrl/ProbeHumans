@@ -395,6 +395,7 @@ final class GameScene: SKScene {
                 case "friends": self.showFriends()
                 case "worlds": self.showStore(.worlds)
                 case "maps": self.showMaps()
+                case "settings": self.showSettings()
                 default: break
                 }
             }
