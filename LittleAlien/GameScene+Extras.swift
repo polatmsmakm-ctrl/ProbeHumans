@@ -1432,14 +1432,20 @@ extension GameScene {
                 card.addChild(UIK.label(l, size: 10, color: UIColor(white: 1, alpha: 0.75), y: -ch * 0.2 - CGFloat(k) * 13, shadow: nil))
             }
             overlay.addChild(card)
-            addButton(sel ? "✓ SELECTED" : "CHOOSE", x: x, y: y - ch / 2 + 18, w: cw - 20, h: 26,
-                      color: sel ? UIK.green : UIK.orange, fontSize: 12) { [weak self] in
+            let choose: () -> Void = { [weak self] in
                 guard let self = self else { return }
                 Biome.picked = o.0
                 let b = o.0 ?? .farm
                 if self.biome != b { self.applyBiome(b, animated: false) }
+                self.sound.play("click")
                 self.showMaps()
             }
+            // the whole card can be tapped, not only its button
+            let tapArea = addButton("", x: x, y: y, w: cw, h: ch, plain: true, action: choose)
+            tapArea.zPosition = 1
+            let btn = addButton(sel ? "✓ SELECTED" : "CHOOSE", x: x, y: y - ch / 2 + 18, w: cw - 20, h: 26,
+                                color: sel ? UIK.green : UIK.orange, fontSize: 12, action: choose)
+            btn.zPosition = 5
         }
         overlay.addChild(UIK.label(pick == nil ? "The map changes every 5,000 m" : "Every run stays on \(pick!.name.lowercased())",
                                    size: 12, color: UIColor(white: 1, alpha: 0.6), y: -H / 2 + 30, shadow: nil))

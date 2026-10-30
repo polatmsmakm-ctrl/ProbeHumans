@@ -801,7 +801,7 @@ final class GameScene: SKScene {
         let items: [(String, () -> Void)] = [
             ("STORE", { [weak self] in self?.showStore(.powers) }),
             ("THEMES", { [weak self] in self?.showStore(.ufo) }),
-            ("MAPS", { [weak self] in self?.showMaps() }),
+            ("MAP: " + (Biome.picked.map { $0.name.replacingOccurrences(of: "THE ", with: "") } ?? "AUTO"), { [weak self] in self?.showMaps() }),
             ("MISSIONS" + badge, { [weak self] in self?.showMissions() }),
             ("AWARDS", { [weak self] in self?.showAwards() }),
             ("FRIENDS", { [weak self] in self?.showFriends() }),
