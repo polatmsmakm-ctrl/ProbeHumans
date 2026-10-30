@@ -362,3 +362,14 @@ extension Painter {
         return t
     }
 }
+
+extension Painter {
+    /// Soft round light (white in the middle, fading out) for neon / window glows.
+    static func softGlow() -> SKTexture {
+        return texture("softglow", CGSize(width: 64, height: 64), scale: 2) { c, s in
+            let col = [UIColor(white: 1, alpha: 1), UIColor(white: 1, alpha: 0.35), UIColor(white: 1, alpha: 0)]
+            radial(c, CGPath(rect: CGRect(origin: .zero, size: s), transform: nil), col,
+                   CGPoint(x: s.width / 2, y: s.height / 2), s.width / 2, [0, 0.45, 1])
+        }
+    }
+}

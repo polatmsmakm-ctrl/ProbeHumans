@@ -361,6 +361,81 @@ enum Art {
         return n
     }
 
+    /// The owner's shop strip (restaurant · supermarket · laundry), tinted to match the
+    /// world look, the map and the weather, with neon glow and light spilling on the ground.
+    static func shop(look: WorldTheme.Look, biome: Biome, rain: Bool) -> SKNode {
+        let n = SKNode()
+        guard let tex = Painter.roadSignImage("shop_strip") else { return n }
+        let w: CGFloat = 420
+        let h = w * tex.size().height / max(1, tex.size().width)
+        let glow = Painter.softGlow()
+        let spots: [(CGFloat, UIColor)] = [(-0.33, rgb(1, 0.72, 0.4)), (0, rgb(1, 0.22, 0.2)), (0.33, rgb(0.3, 0.5, 1))]
+
+        // light from the windows on the pavement (longer and brighter on a wet road)
+        for (fx, col) in spots {
+            let g = SKSpriteNode(texture: glow, size: CGSize(width: w * 0.42, height: rain ? 70 : 38))
+            g.position = CGPoint(x: fx * w, y: rain ? -14 : -4)
+            g.color = col
+            g.colorBlendFactor = 1
+            g.alpha = rain ? 0.5 : 0.32
+            g.blendMode = .add
+            n.addChild(g)
+        }
+
+        let shopS = SKSpriteNode(texture: tex, size: CGSize(width: w, height: h))
+        shopS.anchorPoint = CGPoint(x: 0.5, y: 0)
+        var tint = rgb(0.82, 0.84, 1)
+        var amount: CGFloat = 0.16
+        switch look {
+        case .winter: tint = rgb(0.84, 0.93, 1); amount = 0.3
+        case .halloween: tint = rgb(1, 0.74, 0.52); amount = 0.24
+        case .normal: break
+        }
+        if biome == .desert && look == .normal { tint = rgb(1, 0.86, 0.68); amount = 0.18 }
+        if rain { tint = rgb(0.72, 0.78, 0.95); amount = max(amount, 0.3) }
+        shopS.color = tint
+        shopS.colorBlendFactor = amount
+        n.addChild(shopS)
+
+        // neon glow over the three signs
+        for (i, (fx, col)) in spots.enumerated() {
+            let g = SKSpriteNode(texture: glow, size: CGSize(width: w * 0.4, height: h * 0.5))
+            g.position = CGPoint(x: fx * w, y: h * 0.74)
+            g.color = col
+            g.colorBlendFactor = 1
+            g.alpha = 0.22
+            g.blendMode = .add
+            n.addChild(g)
+            if look == .halloween && i == 0 {
+                // spooky flickering restaurant sign
+                g.run(.repeatForever(.sequence([.wait(forDuration: Double.random(in: 1.5...3.5)),
+                                                .fadeAlpha(to: 0.02, duration: 0.05), .fadeAlpha(to: 0.3, duration: 0.05),
+                                                .fadeAlpha(to: 0.05, duration: 0.07), .fadeAlpha(to: 0.22, duration: 0.1)])))
+            }
+        }
+
+        switch look {
+        case .winter:
+            // snow on the roof and the restaurant awning
+            let roof = rect(w * 0.99, 7, rgb(0.95, 0.97, 1), 0, h - 3, r: 3.5)
+            n.addChild(roof)
+            let mid = rect(w * 0.37, 6, rgb(0.95, 0.97, 1), 0, h + 1, r: 3)
+            n.addChild(mid)
+            let awn = rect(w * 0.29, 4, rgb(0.95, 0.97, 1), -w * 0.335, h * 0.535, r: 2)
+            n.addChild(awn)
+        case .halloween:
+            for px in [-w * 0.44, w * 0.44] {
+                let p = SKSpriteNode(texture: Painter.pumpkin(), size: CGSize(width: 22, height: 19))
+                p.anchorPoint = CGPoint(x: 0.5, y: 0)
+                p.position = CGPoint(x: px, y: h * 0.06)
+                n.addChild(p)
+            }
+        case .normal:
+            break
+        }
+        return n
+    }
+
     static func tuft() -> SKNode {
         let s = SKSpriteNode(texture: Painter.tuft(Int.random(in: 0..<3)), size: CGSize(width: 22, height: 16))
         s.anchorPoint = CGPoint(x: 0.5, y: 0)

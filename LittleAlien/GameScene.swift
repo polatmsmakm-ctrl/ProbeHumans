@@ -207,6 +207,8 @@ final class GameScene: SKScene {
     /// (150 + 200·k never lands on the 500 m distance boards).
     var nextRoadSign = 150
     var roadSignIndex = 0
+    /// The shop strip (restaurant / supermarket / laundry) shows up on every map.
+    var nextShop = 450
     var pendingSigns: [(CGFloat, [String])] = []
 
     /// Launch argument used by the CI screenshot job: plays by itself.
@@ -400,6 +402,15 @@ final class GameScene: SKScene {
                 case "worlds": self.showStore(.worlds)
                 case "maps": self.showMaps()
                 case "settings": self.showSettings()
+                case "shop":    // screenshot check of the shop in each look
+                    self.newOverlay(dim: 0.2)
+                    let looks: [(WorldTheme.Look, Biome, Bool)] = [(.normal, .farm, false), (.winter, .city, false), (.halloween, .farm, false), (.normal, .desert, true)]
+                    for (i, l) in looks.enumerated() {
+                        let n = Art.shop(look: l.0, biome: l.1, rain: l.2)
+                        n.setScale(min(1, self.W / 900))
+                        n.position = CGPoint(x: (CGFloat(i % 2) - 0.5) * self.W * 0.48, y: i < 2 ? self.H * 0.02 : -self.H * 0.45)
+                        self.overlay.addChild(n)
+                    }
                 case "signs":   // screenshot check of every street sign
                     self.newOverlay(dim: 0.5)
                     for i in 0..<Art.roadSignCount {
@@ -425,6 +436,7 @@ final class GameScene: SKScene {
                 self.nextCoinX = self.camX + 200
                 self.nextSign = (m / Tuning.signEvery + 1) * Tuning.signEvery
                 self.nextRoadSign = m + 150
+                self.nextShop = m + 250
                 self.roadSignIndex = 0
                 self.nextBossAt = m + 3000
                 self.nextWeatherAt = m + 400
@@ -1199,6 +1211,7 @@ final class GameScene: SKScene {
         pendingSigns = []
         nextRoadSign = 150
         roadSignIndex = 0
+        nextShop = 450
         spawnWorld(menu: true)
     }
 
@@ -1855,6 +1868,16 @@ final class GameScene: SKScene {
                 world.addChild(dec)
                 decals.append(dec)
                 nextRoadSign += 200
+            }
+            let shopX = CGFloat(nextShop) * Tuning.unit
+            if shopX < limit {
+                let dec = Decal()
+                dec.addChild(Art.shop(look: store.currentWorld.look, biome: biome, rain: raining))
+                dec.gx = shopX
+                dec.gd = 3.3
+                world.addChild(dec)
+                decals.append(dec)
+                nextShop += 1600
             }
             var keep: [(CGFloat, [String])] = []
             for s in pendingSigns {
