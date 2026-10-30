@@ -112,6 +112,8 @@ final class GameScene: SKScene {
     let ufoLight = SKLightNode()
     let spotLight = SKLightNode()
     var beamColorNow: UIColor = .white
+    let gradeNode = SKSpriteNode()
+    let ufoHalo = SKSpriteNode()
     weak var aimingHunter: Creature?
     var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
     let beamDust = SKEmitterNode()
@@ -238,9 +240,10 @@ final class GameScene: SKScene {
         A = H * 0.62
         fieldTop = H * 0.44
         backgroundColor = Art.rgb(0.12, 0.08, 0.25)
-        let fxOn = FX.cinematic && !ProcessInfo.processInfo.arguments.contains("-nofx")
-        filter = fxOn ? CinemaFilter() : nil
-        shouldEnableEffects = fxOn
+        // (a full-screen CoreImage filter switches SpriteKit lighting off, so the cinematic
+        // look is done with a grade layer + glow halos instead — see applyCinematic())
+        filter = nil
+        shouldEnableEffects = false
         shouldRasterize = false
 
         bg.zPosition = -1000
@@ -1069,8 +1072,7 @@ final class GameScene: SKScene {
         addButton("CINEMATIC FX: \(FX.cinematic ? "ON" : "OFF")", x: 0, y: -H * 0.13, w: 220, h: 34, color: FX.cinematic ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 15) { [weak self] in
             guard let self = self else { return }
             FX.cinematic.toggle()
-            self.filter = FX.cinematic ? CinemaFilter() : nil
-            self.shouldEnableEffects = FX.cinematic
+            self.applyCinematic()
             self.showSettings()
         }
         addButton("SOUNDS: \(sound.sfxOn ? "ON" : "OFF")", x: 90, y: -H * 0.02, w: 160, h: 36, color: sound.sfxOn ? UIK.green : UIColor(white: 0.4, alpha: 1), fontSize: 16) { [weak self] in

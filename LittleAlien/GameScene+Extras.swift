@@ -123,7 +123,33 @@ extension GameScene {
         spotLight.ambientColor = .black
         spotLight.lightColor = .black
 
+        // cinematic grade: cool sky, warm ground, a little extra contrast (multiply x2, 0.5 = neutral)
+        gradeNode.removeFromParent()
+        gradeNode.texture = Art.gradient(size: CGSize(width: 8, height: 128),
+                                         colors: [Art.rgb(0.47, 0.48, 0.58), Art.rgb(0.52, 0.5, 0.52), Art.rgb(0.55, 0.51, 0.46)],
+                                         locations: [0, 0.5, 1])
+        gradeNode.size = size
+        gradeNode.anchorPoint = .zero
+        gradeNode.blendMode = .multiplyX2
+        gradeNode.zPosition = 898
+        addChild(gradeNode)
+        // soft neon halo around the saucer (bloom)
+        ufoHalo.removeFromParent()
+        ufoHalo.texture = Art.softDot()
+        ufoHalo.size = CGSize(width: 330 * ufoScale, height: 150 * ufoScale)
+        ufoHalo.blendMode = .add
+        ufoHalo.colorBlendFactor = 1
+        ufoHalo.zPosition = 699
+        addChild(ufoHalo)
+        applyCinematic()
+
         applyWorldLook()
+    }
+
+    func applyCinematic() {
+        let on = FX.cinematic && !ProcessInfo.processInfo.arguments.contains("-nofx")
+        gradeNode.isHidden = !on
+        ufoHalo.isHidden = !on
     }
 
     /// Light positions/colours follow the beam every frame.
@@ -133,6 +159,9 @@ extension GameScene {
         beamLight.lightColor = on ? beamColorNow.withAlphaComponent(0.85) : .black
         ufoLight.position = CGPoint(x: ufo.position.x, y: ufo.position.y - 40 * ufoScale)
         ufoLight.lightColor = store.currentTheme.neon.withAlphaComponent(0.35)
+        ufoHalo.position = CGPoint(x: ufo.position.x, y: ufo.position.y - 6 * ufoScale)
+        ufoHalo.color = store.currentTheme.neon
+        ufoHalo.alpha = 0.32 + 0.06 * sin(clock * 4)
         if let spot = searchLight {
             spotLight.position = spot.position
             spotLight.lightColor = Art.rgb(1, 0.95, 0.75)
