@@ -63,7 +63,7 @@ jobs:
           done
           xcrun simctl terminate "$UDID" com.rashid.littlealien || true
           xcrun simctl launch "$UDID" com.rashid.littlealien -exportart -nofx
-          sleep 30
+          sleep 120
           DATA=$(xcrun simctl get_app_container "$UDID" com.rashid.littlealien data)
           mkdir -p shots/art && cp -R "$DATA/Documents/art/." shots/art/ || true
           ls shots/art | head -5
