@@ -730,7 +730,7 @@ extension GameScene {
         if status == .play && bossNode == nil && bossTank == nil && distance >= nextBossAt {
             nextBossAt += 3000
             bossCount += 1
-            startBoss(heli: bossCount % 2 == 1)
+            startBoss(heli: false)   // helicopter removed — the giant tank is the boss
         }
         guard bossNode != nil || bossTank != nil else { return }
         if status == .dead {
