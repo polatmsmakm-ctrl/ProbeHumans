@@ -203,6 +203,9 @@ final class GameScene: SKScene {
     var nextPickupX: CGFloat = 0
     var nextTuftX: CGFloat = 0
     var nextSign = Tuning.signEvery
+    /// Blue street signs along the road (all maps), every 700 m starting at 250 m.
+    var nextRoadSign = 250
+    var roadSignIndex = 0
     var pendingSigns: [(CGFloat, [String])] = []
 
     /// Launch argument used by the CI screenshot job: plays by itself.
@@ -412,6 +415,7 @@ final class GameScene: SKScene {
                 self.nextFarX = self.camX - 300
                 self.nextCoinX = self.camX + 200
                 self.nextSign = (m / Tuning.signEvery + 1) * Tuning.signEvery
+                self.nextRoadSign = m + 150
                 self.nextBossAt = m + 3000
                 self.nextWeatherAt = m + 400
             }
@@ -1183,6 +1187,8 @@ final class GameScene: SKScene {
         nextFarX = camX - 300
         nextSign = Tuning.signEvery
         pendingSigns = []
+        nextRoadSign = 250
+        roadSignIndex = Int.random(in: 0..<Art.roadSignCount)
         spawnWorld(menu: true)
     }
 
@@ -1827,6 +1833,18 @@ final class GameScene: SKScene {
             if signX < limit {
                 addSign(["\(nextSign)M"], x: signX, d: 3.05)
                 nextSign += Tuning.signEvery
+            }
+            // Kuwaiti street signs
+            let rsX = CGFloat(nextRoadSign) * Tuning.unit
+            if rsX < limit {
+                let dec = Decal()
+                dec.addChild(Art.roadSign(roadSignIndex))
+                roadSignIndex += 1
+                dec.gx = rsX
+                dec.gd = 3.0
+                world.addChild(dec)
+                decals.append(dec)
+                nextRoadSign += 700
             }
             var keep: [(CGFloat, [String])] = []
             for s in pendingSigns {

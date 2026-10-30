@@ -294,3 +294,71 @@ extension Painter {
         }
     }
 }
+
+// MARK: - Kuwaiti road signs (blue plates on posts)
+
+extension Painter {
+    /// Blue Kuwaiti street sign drawn in code (Arabic name on top, English below, arrow at the side).
+    static func streetSign(_ id: String, arabic: String, english: String, arrowLeft: Bool) -> SKTexture {
+        let size = CGSize(width: 300, height: 146)
+        return texture("streetsign_\(id)", size) { c, s in
+            // back to UIKit (y-down) coordinates so text draws the right way up
+            c.translateBy(x: 0, y: s.height)
+            c.scaleBy(x: 1, y: -1)
+            let outer = CGRect(origin: .zero, size: s)
+            UIColor(white: 0.97, alpha: 1).setFill()
+            UIBezierPath(roundedRect: outer, cornerRadius: 14).fill()
+            let blue = UIColor(red: 0.16, green: 0.34, blue: 0.64, alpha: 1)
+            blue.setFill()
+            UIBezierPath(roundedRect: outer.insetBy(dx: 4, dy: 4), cornerRadius: 11).fill()
+            // mounting holes
+            UIColor(red: 0.9, green: 0.86, blue: 0.8, alpha: 1).setFill()
+            for hx in [s.width * 0.18, s.width * 0.82] {
+                UIBezierPath(roundedRect: CGRect(x: hx - 12, y: 6, width: 24, height: 9), cornerRadius: 4.5).fill()
+            }
+            // arrow
+            let ax: CGFloat = arrowLeft ? 46 : s.width - 46
+            let dir: CGFloat = arrowLeft ? -1 : 1
+            let a = UIBezierPath()
+            let ay = s.height * 0.55
+            a.move(to: CGPoint(x: ax + dir * 30, y: ay))
+            a.addLine(to: CGPoint(x: ax + dir * 4, y: ay - 24))
+            a.addLine(to: CGPoint(x: ax + dir * 4, y: ay - 9))
+            a.addLine(to: CGPoint(x: ax - dir * 28, y: ay - 9))
+            a.addLine(to: CGPoint(x: ax - dir * 28, y: ay + 9))
+            a.addLine(to: CGPoint(x: ax + dir * 4, y: ay + 9))
+            a.addLine(to: CGPoint(x: ax + dir * 4, y: ay + 24))
+            a.close()
+            UIColor.white.setFill()
+            a.fill()
+            // text area beside the arrow
+            let tx: CGFloat = arrowLeft ? 88 : 14
+            let tw: CGFloat = s.width - 102
+            let para = NSMutableParagraphStyle()
+            para.alignment = .center
+            func draw(_ t: String, _ font: UIFont, _ y: CGFloat, _ h: CGFloat) {
+                var f = font
+                var w = (t as NSString).size(withAttributes: [.font: f]).width
+                while w > tw && f.pointSize > 10 {   // shrink long names to fit
+                    f = f.withSize(f.pointSize - 1)
+                    w = (t as NSString).size(withAttributes: [.font: f]).width
+                }
+                let attrs: [NSAttributedString.Key: Any] = [.font: f, .foregroundColor: UIColor.white, .paragraphStyle: para]
+                (t as NSString).draw(in: CGRect(x: tx, y: y, width: tw, height: h), withAttributes: attrs)
+            }
+            draw(arabic, UIFont.systemFont(ofSize: 40, weight: .heavy), 22, 56)
+            draw(english, UIFont.systemFont(ofSize: 30, weight: .bold), 82, 44)
+        }
+    }
+
+    /// One of the owner's sign pictures (road_*.png) if it is in the app.
+    static func roadSignImage(_ name: String) -> SKTexture? {
+        let key = "roadimg_" + name
+        if let t = cached(key) { return t }
+        guard let img = UIImage(named: name) else { return nil }
+        let t = SKTexture(image: img)
+        t.filteringMode = .linear
+        putCache(key, t)
+        return t
+    }
+}

@@ -18,6 +18,9 @@ enum Painter {
         return key.replacingOccurrences(of: "_?[0-9]+x[0-9]+$", with: "", options: .regularExpression)
     }
 
+    static func cached(_ key: String) -> SKTexture? { return cache[key] }
+    static func putCache(_ key: String, _ t: SKTexture) { cache[key] = t }
+
     static func texture(_ key: String, _ size: CGSize, scale: CGFloat = Painter.hi, _ draw: (CGContext, CGSize) -> Void) -> SKTexture {
         if let t = cache[key] { return t }
         // Professional art: a PNG named art_<name>.png in the app replaces the painted version.

@@ -329,6 +329,37 @@ enum Art {
         return n
     }
 
+    /// The Kuwaiti blue street signs (3 from the owner's pictures + Jordan St. and Beirut St.).
+    static let roadSignCount = 5
+    static func roadSign(_ i: Int) -> SKNode {
+        let n = SKNode()
+        let tex: SKTexture
+        switch i % roadSignCount {
+        case 0: tex = Painter.roadSignImage("road_kuwait") ?? Painter.streetSign("kuwait", arabic: "مدينة الكويت", english: "Kuwait City", arrowLeft: false)
+        case 1: tex = Painter.streetSign("jordan", arabic: "شارع الأردن", english: "Jordan Street", arrowLeft: false)
+        case 2: tex = Painter.roadSignImage("road_abdullah") ?? Painter.streetSign("abdullah", arabic: "عبدالله المبارك", english: "Abdullah Mubarak", arrowLeft: true)
+        case 3: tex = Painter.streetSign("beirut", arabic: "شارع بيروت", english: "Beirut Street", arrowLeft: true)
+        default: tex = Painter.roadSignImage("road_ardiya") ?? Painter.streetSign("ardiya", arabic: "العارضية", english: "Ardiya", arrowLeft: false)
+        }
+        let pw: CGFloat = 176
+        let ph = pw * tex.size().height / max(1, tex.size().width)
+        let postH: CGFloat = 62
+        let grey = rgb(0.55, 0.58, 0.62)
+        for px in [-pw * 0.3, pw * 0.3] {
+            let post = rect(6, postH + ph * 0.6, grey, px, (postH + ph * 0.6) / 2, r: 2, stroke: rgb(0.2, 0.22, 0.26))
+            post.lineWidth = 1
+            n.addChild(post)
+        }
+        let plate = SKSpriteNode(texture: tex, size: CGSize(width: pw, height: ph))
+        plate.anchorPoint = CGPoint(x: 0.5, y: 0)
+        plate.position = CGPoint(x: 0, y: postH)
+        // night: slightly dimmed, still readable (signs are reflective)
+        plate.color = rgb(0.78, 0.8, 0.92)
+        plate.colorBlendFactor = 0.25
+        n.addChild(plate)
+        return n
+    }
+
     static func tuft() -> SKNode {
         let s = SKSpriteNode(texture: Painter.tuft(Int.random(in: 0..<3)), size: CGSize(width: 22, height: 16))
         s.anchorPoint = CGPoint(x: 0.5, y: 0)
