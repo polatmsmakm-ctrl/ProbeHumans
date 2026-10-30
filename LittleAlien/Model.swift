@@ -59,11 +59,11 @@ enum Tuning {
     static let unit: CGFloat = 10
 
     // Speed (meters per second)
-    static let startSpeed: CGFloat = 14
+    static let startSpeed: CGFloat = 16
     static let speedGain: CGFloat = 0.083
     static let maxSpeed: CGFloat = 20
     /// Extra speed earned from score: start + max * (1 - e^(-score/scale)).
-    static let scoreSpeedMax: CGFloat = 19
+    static let scoreSpeedMax: CGFloat = 22
     static let scoreSpeedScale: CGFloat = 3000
     static let boostSpeed: CGFloat = 34
     static let boostDistance: CGFloat = 300
@@ -327,6 +327,9 @@ final class Obstacle: GroundThing {
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
+
+/// Shows up every 1,500 points; beaming it up refills all hearts.
+final class HeartPickup: GroundThing {}
 
 final class Coin: GroundThing {
     var drift = false

@@ -27,6 +27,23 @@ extension Painter {
         }
     }
 
+    static func heart() -> SKTexture {
+        return texture("heart", CGSize(width: 48, height: 46)) { ctx, _ in
+            radial(ctx, ell(24, 24, 48, 46), [c(1, 0.3, 0.4, 0.55), c(1, 0.2, 0.3, 0)], CGPoint(x: 24, y: 24), 24)
+            let h = CGMutablePath()
+            h.move(to: CGPoint(x: 24, y: 8))
+            h.addCurve(to: CGPoint(x: 8, y: 30), control1: CGPoint(x: 14, y: 16), control2: CGPoint(x: 6, y: 22))
+            h.addCurve(to: CGPoint(x: 24, y: 32), control1: CGPoint(x: 10, y: 40), control2: CGPoint(x: 22, y: 40))
+            h.addCurve(to: CGPoint(x: 40, y: 30), control1: CGPoint(x: 26, y: 40), control2: CGPoint(x: 38, y: 40))
+            h.addCurve(to: CGPoint(x: 24, y: 8), control1: CGPoint(x: 42, y: 22), control2: CGPoint(x: 34, y: 16))
+            h.closeSubpath()
+            glow(ctx, c(1, 0.25, 0.35), 6) { fill(ctx, h, c(0.9, 0.12, 0.2)) }
+            radial(ctx, h, [c(1, 0.55, 0.6), c(0.92, 0.15, 0.25), c(0.55, 0.03, 0.1)], CGPoint(x: 17, y: 30), 22, [0, 0.45, 1])
+            stroke(ctx, h, c(1, 0.85, 0.88, 0.8), 1.2)
+            fill(ctx, ell(15, 31, 6, 4), c(1, 1, 1, 0.75))
+        }
+    }
+
     // MARK: Props
 
     static func powerPole() -> SKTexture {

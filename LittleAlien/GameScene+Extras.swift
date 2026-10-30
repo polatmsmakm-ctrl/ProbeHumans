@@ -137,6 +137,7 @@ extension GameScene {
         setText(bossLabel, "")
         lastHitDistance = 0
         lastMissionTick = 0
+        nextHeartAt = 1500
         dawnNode.alpha = 0
         slowTint.alpha = 0
         shieldNode.isHidden = true
@@ -157,6 +158,7 @@ extension GameScene {
         updateSearchlight(wdt)
         updateBoss(dt)
         updateBats(dt)
+        updateHearts()
         if spottedCooldown > 0 { spottedCooldown -= dt }
 
         // dawn slowly breaks the longer you fly
@@ -178,6 +180,50 @@ extension GameScene {
             var fin = store.mission(.distance, best: distance)
             fin += store.mission(.noHit, best: distance - lastHitDistance)
             missionDone(fin)
+        }
+    }
+
+    // MARK: - Heart refill (every 1,500 points)
+
+    func updateHearts() {
+        if screen == .playing && status == .play && score >= nextHeartAt {
+            nextHeartAt += 1500
+            let d = CGFloat.random(in: (dMin + 0.25)...(dMax - 0.5))
+            let h = HeartPickup()
+            let glow = SKSpriteNode(texture: Art.softDot(), size: CGSize(width: 70, height: 70))
+            glow.color = Art.rgb(1, 0.3, 0.4)
+            glow.colorBlendFactor = 1
+            glow.blendMode = .add
+            glow.position = CGPoint(x: 0, y: 22)
+            glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.4, duration: 0.4), .fadeAlpha(to: 1, duration: 0.4)])))
+            h.addChild(Art.shadow(22))
+            h.addChild(glow)
+            let s = SKSpriteNode(texture: Painter.heart(), size: CGSize(width: 34, height: 33))
+            s.position = CGPoint(x: 0, y: 22)
+            s.run(.repeatForever(.group([
+                .sequence([.moveBy(x: 0, y: 5, duration: 0.45), .moveBy(x: 0, y: -5, duration: 0.45)]),
+                .sequence([.scale(to: 1.15, duration: 0.3), .scale(to: 1, duration: 0.3)])
+            ])))
+            h.addChild(s)
+            h.gx = worldX(atX: W * 1.08, d: d)
+            h.gd = d
+            world.addChild(h)
+            hearts.append(h)
+            popupHUD("A heart appeared — beam it up to refill your health!", color: Art.rgb(1, 0.55, 0.6))
+            sound.play("warn", volume: 0.4)
+        }
+        for h in hearts where !h.lifting {
+            project(h)
+            let hb = beamActive && screen == .playing ? beamHit(h.gx, h.gd, 1.3) : 0
+            if hb > 0 {
+                h.onTwin = hb == 2
+                sound.laserGrab()
+                startLift(h)
+            }
+        }
+        hearts.removeAll { h in
+            if !h.lifting && sx(h.gx, h.gd) < -150 * ws { h.removeFromParent(); return true }
+            return false
         }
     }
 

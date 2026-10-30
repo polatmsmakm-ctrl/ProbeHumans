@@ -103,6 +103,8 @@ final class GameScene: SKScene {
     var lastHitDistance = 0
     var lastMissionTick: CGFloat = 0
     var bats: [SKSpriteNode] = []
+    var hearts: [HeartPickup] = []
+    var nextHeartAt = 1500
     var fireflies: [(node: SKSpriteNode, phase: CGFloat, speed: CGFloat)] = []
     let beamDust = SKEmitterNode()
     var haze = SKSpriteNode()
@@ -1073,6 +1075,8 @@ final class GameScene: SKScene {
         for n in coins { n.removeFromParent() }
         for n in pickups { n.removeFromParent() }
         for n in decals { n.removeFromParent() }
+        for n in hearts { n.removeFromParent() }
+        hearts = []
         for n in missiles { n.removeFromParent() }
         liftLayer.removeAllChildren()
         creatures = []; obstacles = []; coins = []; pickups = []; decals = []; missiles = []; flocks = []
@@ -2145,6 +2149,15 @@ final class GameScene: SKScene {
             missionDone(store.mission(.coins, add: 1))
             bumpStreak()
             sound.play("coin", volume: 0.55, minGap: 0.05)
+        } else if let h = n as? HeartPickup {
+            hearts.removeAll { $0 === h }
+            guard screen == .playing else { return }
+            health = maxHealth
+            invincible = max(invincible, 1)
+            banner("FULL HEALTH!")
+            sound.play("powerup")
+            sound.play("chest", volume: 0.6)
+            hapticMedium.impactOccurred()
         } else if let p = n as? Pickup {
             pickups.removeAll { $0 === p }
             guard screen == .playing else { return }
