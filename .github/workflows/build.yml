@@ -1,0 +1,68 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project LittleAlien.xcodeproj \
+            -scheme LittleAlien \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build 2>&1 | tee build.log
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/LittleAlien.app Payload/
+          zip -qry LittleAlien.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LittleAlien-IPA
+          path: LittleAlien.ipa
+
+      - name: Publish IPA and build log to ipa branch
+        if: always()
+        run: |
+          mkdir ../ipa-out
+          if [ -f LittleAlien.ipa ]; then cp LittleAlien.ipa ../ipa-out/; fi
+          if [ -f build.log ]; then
+            grep -E "error:|warning: .*(deprecated|unused)" build.log | head -n 80 > ../ipa-out/errors.log || true
+            tail -n 120 build.log > ../ipa-out/build-tail.log
+          fi
+          cd ../ipa-out
+          echo "built from ${GITHUB_SHA::7}" > INFO.txt
+          git init -q -b ipa
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Build output from ${GITHUB_SHA::7}"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f origin ipa
