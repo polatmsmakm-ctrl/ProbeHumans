@@ -238,8 +238,9 @@ final class GameScene: SKScene {
         A = H * 0.62
         fieldTop = H * 0.44
         backgroundColor = Art.rgb(0.12, 0.08, 0.25)
-        filter = FX.cinematic ? CinemaFilter() : nil
-        shouldEnableEffects = FX.cinematic
+        let fxOn = FX.cinematic && !ProcessInfo.processInfo.arguments.contains("-nofx")
+        filter = fxOn ? CinemaFilter() : nil
+        shouldEnableEffects = fxOn
         shouldRasterize = false
 
         bg.zPosition = -1000

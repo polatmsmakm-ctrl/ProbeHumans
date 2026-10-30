@@ -115,8 +115,8 @@ extension GameScene {
             l.shadowColor = .clear
             addChild(l)
         }
-        beamLight.falloff = 1.6
-        beamLight.ambientColor = Art.rgb(0.6, 0.63, 0.78)
+        beamLight.falloff = 1.4
+        beamLight.ambientColor = Art.rgb(0.9, 0.91, 0.96)
         ufoLight.falloff = 2.6
         ufoLight.ambientColor = .black
         spotLight.falloff = 2.2
@@ -130,9 +130,9 @@ extension GameScene {
     func updateLights() {
         let on = beamVisible
         beamLight.position = beamPt
-        beamLight.lightColor = on ? beamColorNow.darker(1.4) : .black
+        beamLight.lightColor = on ? beamColorNow.withAlphaComponent(0.85) : .black
         ufoLight.position = CGPoint(x: ufo.position.x, y: ufo.position.y - 40 * ufoScale)
-        ufoLight.lightColor = store.currentTheme.neon.withAlphaComponent(0.6)
+        ufoLight.lightColor = store.currentTheme.neon.withAlphaComponent(0.35)
         if let spot = searchLight {
             spotLight.position = spot.position
             spotLight.lightColor = Art.rgb(1, 0.95, 0.75)
@@ -808,7 +808,7 @@ extension GameScene {
                                              .fadeAlpha(to: 0.5, duration: 0.05), .fadeOut(withDuration: 0.35)]))
                     run(.wait(forDuration: 0.35)) { [weak self] in self?.sound.play("thunder", volume: 0.9) }
                     beamLight.ambientColor = Art.rgb(1, 1, 1)
-                    run(.wait(forDuration: 0.2)) { [weak self] in self?.beamLight.ambientColor = Art.rgb(0.6, 0.63, 0.78) }
+                    run(.wait(forDuration: 0.2)) { [weak self] in self?.beamLight.ambientColor = Art.rgb(0.9, 0.91, 0.96) }
                 }
             }
             if rainLeft <= 0 {
