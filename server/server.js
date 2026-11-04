@@ -20,6 +20,7 @@ let nextId = 1;
 
 const server = http.createServer((req, res) => {
   // open http://<address>:8787 in Safari to check the server is reachable
+  console.log(new Date().toLocaleTimeString() + '  browser check from ' + req.socket.remoteAddress);
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Little Alien race server is running. Rooms: ' + rooms.size + '\n');
 });
@@ -131,6 +132,7 @@ function handleJoin(ws, msg) {
   ws.player = player;
   clearTimeout(ws.joinTimer);
   send(ws, { t: 'joined', id, host: room.hostId === id, room: code });
+  console.log(new Date().toLocaleTimeString() + '  ' + player.name + ' joined room ' + code + ' (' + room.players.size + ' in room)');
   sendLobby(room);
 }
 
@@ -183,8 +185,9 @@ function leave(ws) {
   sendLobby(room);
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   if (wss.clients.size > MAX_CLIENTS) { ws.close(1013, 'busy'); return; }
+  console.log(new Date().toLocaleTimeString() + '  player connected from ' + req.socket.remoteAddress);
   ws.isAlive = true;
   ws.player = null;
   ws.msgCount = 0;
