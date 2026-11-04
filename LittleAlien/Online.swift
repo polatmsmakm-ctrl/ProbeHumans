@@ -158,7 +158,10 @@ extension GameScene {
     // MARK: - Small helpers
 
     func raceToast(_ text: String, color: UIColor) {
-        let l = UIK.label(text, size: 15, color: color, font: UIK.heavyItalic, y: -H * 0.36)
+        // only one message at a time, shown above the footer text
+        ui.childNode(withName: "raceToast")?.removeFromParent()
+        let l = UIK.label(text, size: 15, color: color, font: UIK.heavyItalic, y: -H * 0.27)
+        l.name = "raceToast"
         l.zPosition = 300
         ui.addChild(l)
         l.run(.sequence([.wait(forDuration: 2.4), .fadeOut(withDuration: 0.4), .removeFromParent()]))
