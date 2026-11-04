@@ -136,6 +136,7 @@ final class GameScene: SKScene {
     var distLabel = SKLabelNode()
     var powerLabel = SKLabelNode()
     var pauseButton: Button?
+    let race = RaceState()
 
     // MARK: Run state
     var screen: Screen = .menu
@@ -831,6 +832,7 @@ final class GameScene: SKScene {
             ("MISSIONS" + badge, { [weak self] in self?.showMissions() }),
             ("AWARDS", { [weak self] in self?.showAwards() }),
             ("FRIENDS", { [weak self] in self?.showFriends() }),
+            ("RACE", { [weak self] in self?.showRaceJoin() }),
             ("OPTIONS", { [weak self] in self?.showSettings() })
         ]
         for (i, it) in items.enumerated() {
@@ -1249,6 +1251,7 @@ final class GameScene: SKScene {
         rebuildHealthBars()
         tutorial = store.d.runs < 2
         resetExtras()
+        prepareRaceHUD()
 
         secondChance = false
         if runCfg.healthPack && store.d.healthPacks > 0 { store.d.healthPacks -= 1; secondChance = true }
@@ -1303,6 +1306,8 @@ final class GameScene: SKScene {
 
     func pauseGame() {
         guard screen == .playing else { return }
+        // a race can't be paused: the other players keep going
+        if race.active { raceToast("No pause during a race", color: UIK.yellow); return }
         screen = .paused
         touching = false
         newOverlay(dim: 0.4)
@@ -1350,11 +1355,16 @@ final class GameScene: SKScene {
         if newBest { store.d.bestScore = score }
         if distance > store.d.bestDistance { store.d.bestDistance = distance }
         store.save()
-        if quit { showMenu(); return }
+        if quit {
+            if race.inRoom || race.active { raceLeave() }
+            showMenu()
+            return
+        }
 
         screen = .over
         overTimer = 0
         hud.isHidden = true
+        if race.active { raceFinished(); return }
         newOverlay(dim: 0.25)
         coinBadge()
         let pw = min(W - 80, 460), ph = H * 0.82
@@ -1476,6 +1486,7 @@ final class GameScene: SKScene {
 
     func step(_ dt: CGFloat) {
         elapsed += dt
+        if race.active { raceTick(dt) }
         if autoplay && status == .play {
             let pool = creatures.filter { !$0.lifting && sx($0.gx, $0.gd) > W * 0.35 && sx($0.gx, $0.gd) < W * 0.95 }
             if let c = pool.min(by: { sx($0.gx, $0.gd) < sx($1.gx, $1.gd) }) {

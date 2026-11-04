@@ -28,6 +28,9 @@ targets:
         UIStatusBarHidden: true
         CADisableMinimumFrameDurationOnPhone: true
         UIViewControllerBasedStatusBarAppearance: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Little Alien connects to your friend's race server.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight

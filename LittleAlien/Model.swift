@@ -407,6 +407,9 @@ struct SaveData: Codable {
     var nukes: Int? = nil
     var raresCaught: Int? = nil
     var furthestBiome: Int? = nil
+    // online race
+    var raceServer: String? = nil
+    var raceRoom: String? = nil
 }
 
 final class Store {

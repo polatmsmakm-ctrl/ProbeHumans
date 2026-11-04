@@ -1,0 +1,14 @@
+{
+  "name": "little-alien-race-server",
+  "version": "1.0.0",
+  "description": "Tiny WebSocket server for Little Alien online races",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
